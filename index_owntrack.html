@@ -92,13 +92,16 @@
 
         async function loadLocations() {
             try {
+                console.log('Fetching locations from:', API_URL);
                 const response = await fetch(API_URL);
+                console.log('Response status:', response.status);
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
                 const data = await response.json();
+                console.log('Data received:', data);
 
                 // Alte Marker und Linien entfernen
                 markers.forEach(marker => map.removeLayer(marker));
@@ -106,12 +109,15 @@
                 markers = [];
                 polylines = [];
 
-                document.getElementById('status').innerHTML =
+                // Status aktualisieren
+                const statusDiv = document.getElementById('status');
+                statusDiv.innerHTML =
                     `Punkte: ${data.total_points || 0}<br>` +
-                    `Status: ${data.success ? '✅ Verbunden' : '❌ Fehler'}`;
+                    `Status: ✅ Verbunden`;
 
                 if (data.current) {
                     const loc = data.current;
+                    console.log('Current location:', loc);
 
                     // Popup-Inhalt aufbauen
                     let popupContent = `${loc.marker_label}<br>${loc.display_time}`;
@@ -130,6 +136,10 @@
                     const lat = parseFloat(loc.latitude);
                     const lon = parseFloat(loc.longitude);
 
+                    if (isNaN(lat) || isNaN(lon)) {
+                        throw new Error(`Invalid coordinates: lat=${loc.latitude}, lon=${loc.longitude}`);
+                    }
+
                     const marker = L.marker([lat, lon])
                         .addTo(map)
                         .bindPopup(popupContent)
@@ -145,10 +155,14 @@
                         const polyline = L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
                         polylines.push(polyline);
                     }
+                } else {
+                    console.log('No current location in response');
                 }
             } catch (error) {
-                document.getElementById('status').innerHTML = '❌ Verbindungsfehler';
                 console.error('Load error:', error);
+                console.error('Error stack:', error.stack);
+                document.getElementById('status').innerHTML =
+                    `❌ Verbindungsfehler<br><small>${error.message}</small>`;
             }
         }
 
