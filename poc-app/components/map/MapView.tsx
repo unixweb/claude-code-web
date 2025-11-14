@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import dynamic from "next/dynamic";
 import { Location, LocationResponse } from "@/types/location";
 import { getDevice } from "@/lib/devices";
@@ -146,9 +146,10 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
           );
 
           return (
-            <div key={deviceId}>
+            <Fragment key={deviceId}>
               {/* Polyline for path */}
               <Polyline
+                key={`polyline-${deviceId}`}
                 positions={sortedLocs.map((loc) => [
                   loc.latitude,
                   loc.longitude,
@@ -161,7 +162,7 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
               {/* Markers */}
               {sortedLocs.map((loc, idx) => (
                 <Marker
-                  key={`${deviceId}-${idx}`}
+                  key={`marker-${deviceId}-${idx}`}
                   position={[loc.latitude, loc.longitude]}
                   icon={createCustomIcon(
                     device.color,
@@ -182,7 +183,7 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
                   </Popup>
                 </Marker>
               ))}
-            </div>
+            </Fragment>
           );
         })}
       </MapContainer>
