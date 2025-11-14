@@ -87,16 +87,29 @@
         // Auto-Refresh State
         let autoRefreshEnabled = true;
         let refreshInterval = null;
+        let markers = [];
+        let polylines = [];
 
         async function loadLocations() {
             try {
                 const response = await fetch(API_URL);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const data = await response.json();
-                
-                document.getElementById('status').innerHTML = 
+
+                // Alte Marker und Linien entfernen
+                markers.forEach(marker => map.removeLayer(marker));
+                polylines.forEach(polyline => map.removeLayer(polyline));
+                markers = [];
+                polylines = [];
+
+                document.getElementById('status').innerHTML =
                     `Punkte: ${data.total_points || 0}<br>` +
                     `Status: ${data.success ? '✅ Verbunden' : '❌ Fehler'}`;
-                
+
                 if (data.current) {
                     const loc = data.current;
 
@@ -114,22 +127,25 @@
                         popupContent += `<br>🚗 Speed: ${speedKmh} km/h`;
                     }
 
-                    L.marker([loc.latitude, loc.longitude])
+                    const marker = L.marker([loc.latitude, loc.longitude])
                         .addTo(map)
                         .bindPopup(popupContent)
                         .openPopup();
+
+                    markers.push(marker);
 
                     map.setView([loc.latitude, loc.longitude], 15);
 
                     // Historie als Linie
                     if (data.history && data.history.length > 1) {
                         const coords = data.history.map(h => [h.latitude, h.longitude]);
-                        L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
+                        const polyline = L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
+                        polylines.push(polyline);
                     }
                 }
             } catch (error) {
                 document.getElementById('status').innerHTML = '❌ Verbindungsfehler';
-                console.error(error);
+                console.error('Load error:', error);
             }
         }
 
