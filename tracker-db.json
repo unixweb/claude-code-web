@@ -1,0 +1,490 @@
+{
+  "name": "Telegram Location Tracker - NocoDB",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "b7769320-830c-4a76-9086-ea4067969ad7",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        16
+      ],
+      "webhookId": "telegram-location-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "dRHgVQKqowQHIait",
+          "name": "Telegram account n8n-munich-bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.location }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "57f03b50-3184-4d1e-9d33-f628f93f466b",
+      "name": "Hat Location?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        224,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrahiere Location-Daten für NocoDB\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const location = item.json.message.location;\n  const from = item.json.message.from;\n  const messageDate = item.json.message.date;\n  \n  const timestamp = new Date(messageDate * 1000).toISOString();\n  const displayTime = new Date(messageDate * 1000).toLocaleString('de-DE');\n  \n  results.push({\n    json: {\n      latitude: location.latitude,\n      longitude: location.longitude,\n      timestamp: timestamp,\n      user_id: from.id,\n      first_name: from.first_name || '',\n      last_name: from.last_name || '',\n      username: from.username || '',\n      marker_label: `${from.first_name || ''} ${from.last_name || ''}`.trim(),\n      display_time: displayTime,\n      chat_id: item.json.message.chat.id\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "dafcade6-0563-47b9-bd0d-dff0f61d1dbb",
+      "name": "Location verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "projectId": {
+          "__rl": true,
+          "value": "YOUR_PROJECT_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_PROJECT_NAME"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "YOUR_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "locations"
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "latitude",
+              "fieldValue": "={{ $json.latitude }}"
+            },
+            {
+              "fieldName": "longitude",
+              "fieldValue": "={{ $json.longitude }}"
+            },
+            {
+              "fieldName": "timestamp",
+              "fieldValue": "={{ $json.timestamp }}"
+            },
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldName": "first_name",
+              "fieldValue": "={{ $json.first_name }}"
+            },
+            {
+              "fieldName": "last_name",
+              "fieldValue": "={{ $json.last_name }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $json.username }}"
+            },
+            {
+              "fieldName": "marker_label",
+              "fieldValue": "={{ $json.marker_label }}"
+            },
+            {
+              "fieldName": "display_time",
+              "fieldValue": "={{ $json.display_time }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $json.chat_id }}"
+            }
+          ]
+        }
+      },
+      "id": "c519118b-0626-4ace-befc-ee9859d73504",
+      "name": "Speichere in NocoDB",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_NOCODB_CREDENTIALS_ID",
+          "name": "NocoDB API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "projectId": {
+          "__rl": true,
+          "value": "YOUR_PROJECT_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_PROJECT_NAME"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "YOUR_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "locations"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {
+          "sort": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "id": "9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
+      "name": "Hole letzten Eintrag",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_NOCODB_CREDENTIALS_ID",
+          "name": "NocoDB API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "projectId": {
+          "__rl": true,
+          "value": "YOUR_PROJECT_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_PROJECT_NAME"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "YOUR_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "locations"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "8b7a6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
+      "name": "Zähle Einträge",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 2,
+      "position": [
+        896,
+        120
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_NOCODB_CREDENTIALS_ID",
+          "name": "NocoDB API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Kombiniere Daten für Telegram-Bestätigung\nconst lastEntry = $('Hole letzten Eintrag').all();\nconst allEntries = $('Zähle Einträge').all();\nconst originalData = $('Location verarbeiten').first().json;\n\nreturn [{\n  json: {\n    latitude: originalData.latitude,\n    longitude: originalData.longitude,\n    display_time: originalData.display_time,\n    chat_id: originalData.chat_id,\n    total: allEntries.length\n  }\n}];"
+      },
+      "id": "7c6b5a4d-3e2f-1a0b-9c8d-7e6f5a4b3c2d",
+      "name": "Bereite Bestätigung vor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "=✅ Standort gespeichert!\n\n📍 Koordinaten:\nLat: {{ $json.latitude }}\nLon: {{ $json.longitude }}\n\n🕐 Zeit: {{ $json.display_time }}\n\n🗺️ Karte:\nhttps://web.unixweb.home64.de/tracker/index.html\n\n📊 Gespeicherte Punkte: {{ $json.total }}",
+        "additionalFields": {}
+      },
+      "id": "aa023c84-7664-4641-b3fc-cd30b9f69941",
+      "name": "Telegram Bestätigung",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        0
+      ],
+      "webhookId": "9df3ad7d-315d-4782-b4ec-4fb154c0b46d",
+      "credentials": {
+        "telegramApi": {
+          "id": "dRHgVQKqowQHIait",
+          "name": "Telegram account n8n-munich-bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "location",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "b47e8370-3276-4f49-a2c5-25ef07b83ce8",
+      "name": "Webhook - Location API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        304
+      ],
+      "webhookId": "location-api-endpoint"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "projectId": {
+          "__rl": true,
+          "value": "YOUR_PROJECT_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_PROJECT_NAME"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "YOUR_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "locations"
+        },
+        "returnAll": true,
+        "options": {
+          "sort": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "id": "200dbfff-2932-4e92-9e47-181ff706c0de",
+      "name": "Lade Daten aus NocoDB",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 2,
+      "position": [
+        224,
+        304
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_NOCODB_CREDENTIALS_ID",
+          "name": "NocoDB API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Baue API Response aus NocoDB-Daten\nconst locations = $input.all().map(item => item.json);\n\nconst current = locations.length > 0 ? locations[0] : null;\n\nreturn [{\n  json: {\n    success: true,\n    current: current,\n    history: locations,\n    total_points: locations.length,\n    last_updated: current ? current.timestamp : null\n  }\n}];"
+      },
+      "id": "7c56b850-f1dd-4c51-ac8d-4313e199e6e7",
+      "name": "Format API Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "9b720b0b-b4f8-4599-9e2f-d6e8f67819ab",
+      "name": "JSON Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        672,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "height": 544,
+        "width": 1632,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "29506fa4-6cb3-403f-bd64-6a2f49a2eb85",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Hat Location?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hat Location?": {
+      "main": [
+        [
+          {
+            "node": "Location verarbeiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Location verarbeiten": {
+      "main": [
+        [
+          {
+            "node": "Speichere in NocoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Speichere in NocoDB": {
+      "main": [
+        [
+          {
+            "node": "Hole letzten Eintrag",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Zähle Einträge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hole letzten Eintrag": {
+      "main": [
+        [
+          {
+            "node": "Bereite Bestätigung vor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zähle Einträge": {
+      "main": [
+        [
+          {
+            "node": "Bereite Bestätigung vor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bereite Bestätigung vor": {
+      "main": [
+        [
+          {
+            "node": "Telegram Bestätigung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Location API": {
+      "main": [
+        [
+          {
+            "node": "Lade Daten aus NocoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lade Daten aus NocoDB": {
+      "main": [
+        [
+          {
+            "node": "Format API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format API Response": {
+      "main": [
+        [
+          {
+            "node": "JSON Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "PhwIkaqyXRasTXDH"
+  },
+  "versionId": "b87a412a-4833-4f0d-aa33-0ba9074238d9",
+  "meta": {
+    "instanceId": "12d864c68e4fb5dfd100dc0c683b95f43cd55af7e9efa82e25407fac5a3824a5"
+  },
+  "id": "5dUTiJE61r7opoul",
+  "tags": []
+}
