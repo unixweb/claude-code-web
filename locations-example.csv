@@ -1,9 +1,0 @@
-latitude,longitude,timestamp,user_id,first_name,last_name,username,marker_label,display_time,chat_id
-48.1351,11.5820,2025-01-15T10:30:00.000Z,123456789,Max,Mustermann,maxmustermann,Max Mustermann,"15.1.2025, 11:30:00",987654321
-48.1375,11.5750,2025-01-15T11:45:00.000Z,123456789,Max,Mustermann,maxmustermann,Max Mustermann,"15.1.2025, 12:45:00",987654321
-48.1400,11.5680,2025-01-15T13:15:00.000Z,123456789,Max,Mustermann,maxmustermann,Max Mustermann,"15.1.2025, 14:15:00",987654321
-48.1425,11.5610,2025-01-15T14:30:00.000Z,123456789,Max,Mustermann,maxmustermann,Max Mustermann,"15.1.2025, 15:30:00",987654321
-48.1450,11.5540,2025-01-15T15:45:00.000Z,123456789,Max,Mustermann,maxmustermann,Max Mustermann,"15.1.2025, 16:45:00",987654321
-48.1475,11.5470,2025-01-15T17:00:00.000Z,987654321,Anna,Schmidt,annaschmidt,Anna Schmidt,"15.1.2025, 18:00:00",123456789
-48.1500,11.5400,2025-01-15T18:15:00.000Z,987654321,Anna,Schmidt,annaschmidt,Anna Schmidt,"15.1.2025, 19:15:00",123456789
-48.1525,11.5330,2025-01-15T19:30:00.000Z,987654321,Anna,Schmidt,annaschmidt,Anna Schmidt,"15.1.2025, 20:30:00",123456789

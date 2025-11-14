@@ -4,108 +4,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository contains three n8n workflow configurations for location tracking:
+This repository contains an **MQTT-based location tracking system** using n8n and NocoDB:
 
-1. **tracker.json** - Telegram-based with file storage using `/tmp/n8n-locations.json` (simpler, no database required)
-2. **tracker-db.json** - Telegram-based with NocoDB storage (production-ready, persistent storage)
-3. **tracker-mqtt.json** - MQTT-based with NocoDB storage (for OwnTracks/MQTT location data)
+- **n8n-tracker.json** - MQTT/OwnTracks workflow with NocoDB storage
+- **index.html** - Web interface with device filtering, time-based filtering, and multiple map layers
 
-The Telegram workflows share the same architecture but differ in storage backend. The MQTT workflow integrates OwnTracks-compatible location data into the same NocoDB database.
+The system subscribes to MQTT topics (OwnTracks-compatible), processes location data, stores it in NocoDB, and provides both a REST API and web visualization.
 
 ## Workflow Architecture
 
-### Telegram-based Workflows
+The **n8n-tracker.json** workflow contains two independent execution flows:
 
-Both Telegram workflows have two main execution paths:
+### 1. MQTT Location Capture Flow
 
-**1. Location Capture Flow (Telegram Trigger → Storage)**
+```
+MQTT Trigger (owntracks/#)
+    ↓
+MQTT Location verarbeiten (JavaScript: Parse JSON, transform data)
+    ↓
+Speichere in NocoDB (Create record with lat/lon, battery, speed, etc.)
+```
 
-tracker.json (File-based):
-- Telegram Trigger → Hat Location? → Location verarbeiten → Lade existierende Daten → Merge mit History → Speichere in File → Telegram Bestätigung
+**Key nodes:**
+- **MQTT Trigger**: Subscribes to `owntracks/#` topic, receives JSON messages from OwnTracks devices
+- **MQTT Location verarbeiten**:
+  - Parses the `message` field (JSON string)
+  - Validates required fields (lat, lon, tst)
+  - Transforms OwnTracks format to NocoDB schema
+  - Extracts telemetry data (battery, velocity, accuracy, altitude, etc.)
+  - Converts Unix timestamp to ISO 8601 format
+- **Speichere in NocoDB**: Stores location with metadata in database
 
-tracker-db.json (NocoDB-based):
-- Telegram Trigger → Hat Location? → Location verarbeiten → Speichere in NocoDB → [Hole letzten Eintrag + Zähle Einträge] → Merge → Bereite Bestätigung vor → Telegram Bestätigung
+### 2. Location API Flow
 
-Key nodes:
-- **Telegram Trigger**: Receives incoming Telegram messages
-- **Hat Location?**: Filters messages containing location data
-- **Location verarbeiten**: Extracts and formats location data (lat/lon, user info, timestamp) using JavaScript
-- **Storage**: Either file-based (shell commands) or NocoDB API calls
-- **Telegram Bestätigung**: Sends confirmation with location details and map link
+```
+Webhook - Location API (GET /webhook/location)
+    ↓
+Lade Daten aus NocoDB (Get all records)
+    ↓
+Format API Response (JavaScript: Sort, structure JSON)
+    ↓
+JSON Response (CORS-enabled)
+```
 
-**2. Location API Flow (Webhook → JSON Response)** - See section below
-
-### MQTT-based Workflow
-
-**tracker-mqtt.json** has a simpler, single-path architecture:
-
-MQTT Trigger → Ist Location? → MQTT Location verarbeiten → Speichere in NocoDB
-
-Key nodes:
-- **MQTT Trigger**: Subscribes to MQTT topic `owntracks/#` (OwnTracks-compatible)
-- **Ist Location?**: Filters for messages with `_type: "location"`
-- **MQTT Location verarbeiten**: Transforms MQTT/OwnTracks data format to match NocoDB schema
-- **Speichere in NocoDB**: Stores location in same database as Telegram data
-
-### Location API Flow (Shared)
-
-**tracker.json (File-based)**:
-- Webhook - Location API → Lade Daten für API (shell: cat) → Format API Response → JSON Response
-
-**tracker-db.json (NocoDB-based)**:
-- Webhook - Location API → Lade Daten aus NocoDB → Format API Response → JSON Response
-
-Both expose `/location` endpoint with CORS enabled, returning current location, history, and metadata. The MQTT workflow shares the same NocoDB database and thus the same API.
+**Key nodes:**
+- **Webhook - Location API**: Public endpoint at `/webhook/location` with CORS enabled
+- **Lade Daten aus NocoDB**: Fetches all location records from database
+- **Format API Response**: Sorts by timestamp (newest first), builds response structure
+- **JSON Response**: Returns structured JSON with CORS headers
 
 ## Key Technical Details
 
 ### Data Storage
 
-**tracker.json (File-based)**:
-- Location: `/tmp/n8n-locations.json`
-- Format: JSON array of location objects
-- Max retention: 100 most recent locations (oldest automatically removed)
-- Persistence: Survives n8n restarts but may be lost on system restart due to `/tmp` location
+**NocoDB Database Configuration:**
+- **Project ID**: `pdxl4cx4dbu9nxi`
+- **Table ID**: `m8pqj5ixgnnrzkg`
+- **Credential ID**: `T9XuGr6CJD2W2BPO` (NocoDB Token account)
+- **Persistence**: Full database persistence (no client-side limit)
 
-**tracker-db.json & tracker-mqtt.json (NocoDB)**:
-- Location: NocoDB database (Project: `pdxl4cx4dbu9nxi`, Table: `m8pqj5ixgnnrzkg`)
-- Format: NocoDB records (no client-side limit)
-- Persistence: Full database persistence
-- API: Uses n8n's NocoDB node with token authentication (ID: `6fNBtcghMe8wFoE5`)
-- Both workflows write to the same database table
+### NocoDB Schema
 
-### Location Object Structure (NocoDB Schema)
+The database stores location records with the following fields:
 
-The NocoDB database uses the following schema for all location sources:
-
-```json
-{
-  "latitude": number,
-  "longitude": number,
-  "timestamp": "ISO 8601 string",
-  "user_id": number,
-  "first_name": string,
-  "last_name": string,
-  "username": string,
-  "marker_label": string,
-  "display_time": "de-DE locale string",
-  "chat_id": number
-}
+```
+latitude        (Decimal)     - Geographic latitude
+longitude       (Decimal)     - Geographic longitude
+timestamp       (DateTime)    - ISO 8601 timestamp
+user_id         (Number)      - Always 0 for MQTT devices
+first_name      (Text)        - Tracker ID (e.g., "10", "11")
+last_name       (Text)        - Source type (e.g., "fused")
+username        (Text)        - Same as tracker ID
+marker_label    (Text)        - Display label for map markers
+display_time    (Text)        - Formatted timestamp (de-DE locale)
+chat_id         (Number)      - Always 0 for MQTT devices
+battery         (Number)      - Battery percentage (0-100)
+speed           (Decimal)     - Velocity in m/s
 ```
 
-**Data Mapping for MQTT/OwnTracks**:
-- `latitude` ← `lat`
-- `longitude` ← `lon`
-- `timestamp` ← `tst` (Unix timestamp converted to ISO 8601)
-- `user_id` ← `0` (MQTT has no user ID)
-- `first_name` ← `tid` (tracker ID, e.g., "le")
-- `last_name` ← `source` (e.g., "fused")
-- `username` ← `tid`
-- `marker_label` ← Combination of `tid` and optionally `SSID`
-- `display_time` ← Formatted timestamp
-- `chat_id` ← `0` (MQTT has no chat ID)
+### OwnTracks Data Mapping
 
-Additional MQTT data (accuracy, altitude, battery, velocity, etc.) is available in the transformation node but not stored in the database.
+The MQTT transformation node maps OwnTracks JSON fields to NocoDB schema:
+
+| NocoDB Field | OwnTracks Field | Transformation |
+|--------------|-----------------|----------------|
+| `latitude` | `lat` | Direct mapping |
+| `longitude` | `lon` | Direct mapping |
+| `timestamp` | `tst` | Unix timestamp → ISO 8601 |
+| `user_id` | - | Static: `0` |
+| `first_name` | `tid` | Tracker ID (device identifier) |
+| `last_name` | `source` | Location source (e.g., "fused") |
+| `username` | `tid` | Same as tracker ID |
+| `marker_label` | `tid` | Used for map display |
+| `display_time` | `tst` | Formatted with `de-DE` locale |
+| `chat_id` | - | Static: `0` |
+| `battery` | `batt` | Battery percentage |
+| `speed` | `vel` | Velocity in m/s |
+
+**Additional OwnTracks data available but NOT stored:**
+- `acc` - Accuracy in meters
+- `alt` - Altitude
+- `cog` - Course over ground
+- `conn` - Connection type (w=WiFi, m=Mobile)
+- `_id` - Device identifier
 
 ### API Response Structure
 ```json
@@ -118,116 +119,257 @@ Additional MQTT data (accuracy, altitude, battery, velocity, etc.) is available 
 }
 ```
 
-### Web Interface
-The workflow sends users a link to `https://web.unixweb.home64.de/tracker/index.html` for viewing locations on a map.
+### Web Interface (index.html)
 
-The `index.html` file in this repository provides a standalone web interface:
-- **Map Library**: Leaflet.js (loaded from CDN)
-- **API Endpoint**: Configured to `https://n8n.unixweb.eu/webhook/location` (index.html:85)
-- **Features**: Auto-refresh (5 second interval), location history polyline, marker popups
-- **Hosting**: Can be hosted on any web server or opened as a local file
+The web interface is a single-page application built with Leaflet.js:
 
-## Workflow Configuration
+**Configuration:**
+- **API Endpoint**: `https://n8n.unixweb.home64.de/webhook/location` (line 178)
+- **Default View**: Munich (48.1351, 11.5820) at zoom level 12
+- **Auto-refresh**: 5 second interval (configurable)
 
-### Shared Configuration (Both Workflows)
-- **Telegram Credentials**: "Telegram account n8n-munich-bot" (ID: `dRHgVQKqowQHIait`)
-- **Webhook IDs**:
-  - Telegram trigger: `telegram-location-webhook`
-  - Location API: `location-api-endpoint`
+**Key Features:**
+1. **Multiple Map Layers** (lines 158-171):
+   - Standard (OpenStreetMap)
+   - Satellite (Esri World Imagery)
+   - Terrain (OpenTopoMap)
+   - Dark Mode (CartoDB Dark)
+
+2. **Device Mapping** (lines 142-152):
+   - Hardcoded device names: `'10'` → "Joachim Pixel", `'11'` → "Huawei Smartphone"
+   - Device-specific colors: Red (#e74c3c) for device 10, Blue (#3498db) for device 11
+   - **Important**: Device names are mapped from the `username` field (which contains the tracker ID)
+
+3. **Filtering System**:
+   - **Device Filter**: Dropdown populated dynamically from available `username` values
+   - **Time Filter**: 1h, 3h, 6h, 12h, 24h (default: 1 hour)
+   - Filter logic: Always filters to `user_id == 0` (MQTT-only), then applies device and time filters
+
+4. **Visualization** (lines 284-376):
+   - **Markers**: Circular SVG icons with navigation-style clock hand
+   - **Size**: Latest location = 32x32px, history = 16x16px
+   - **Colors**: Device-specific colors from `DEVICE_COLORS` mapping
+   - **Polylines**: Shows movement path per device, color-coded
+   - **Popups**: Show device name, timestamp, battery %, speed (km/h)
+
+**Important Implementation Details:**
+- The `username` field filter logic (line 267) filters MQTT data by checking `user_id == 0`
+- Device colors and names must be updated in the hardcoded mappings (lines 142-152)
+- Speed conversion: OwnTracks velocity (m/s) is converted to km/h with `speed * 3.6` (line 329)
+
+## Workflow Configuration (n8n-tracker.json)
+
+**Workflow Settings:**
+- **Name**: "Telegram Location Tracker - NocoDB"
+- **Workflow ID**: `6P6dKqi4IKcJ521m`
+- **Version ID**: `de17706a-a0ea-42ce-a069-dd09dce421d2`
 - **Execution Order**: v1
 - **Caller Policy**: workflowsFromSameOwner
-- **Status**: Both workflows set to `active: true` by default
+- **Status**: `active: true`
+- **Error Workflow**: `0bBZzSE6SUzVsif5`
+- **Tags**: "owntrack"
 
-### tracker.json Specific
-- **Storage**: Shell commands (cat, echo) for file I/O
-- **Error Workflow**: ID `PhwIkaqyXRasTXDH` (configured but not in this export)
+**Credentials:**
+- **MQTT**: Credential ID `L07VVR2BDfDda6Zo` ("MQTT account")
+- **NocoDB**: Credential ID `T9XuGr6CJD2W2BPO` ("NocoDB Token account")
 
-### tracker-db.json Specific
-- **NocoDB Credentials**: "NocoDB Token account" (ID: `6fNBtcghMe8wFoE5`)
-- **Project ID**: `pdxl4cx4dbu9nxi`
-- **Table ID**: `m8pqj5ixgnnrzkg`
-- **Sort Order**: Uses array structure `[{field: "timestamp", direction: "desc"}]` for sorting locations
+**Node Configuration:**
+- **MQTT Trigger**:
+  - Topic: `owntracks/#`
+  - Subscribes to all OwnTracks topics
+  - No message filtering at trigger level (all messages pass through)
 
-### tracker-mqtt.json Specific
-- **MQTT Credentials**: Requires MQTT broker credentials (placeholder ID: `MQTT_CREDENTIAL_ID`)
-- **Topic**: `owntracks/#` (subscribes to all OwnTracks topics)
-- **Message Filter**: Only processes messages with `_type: "location"`
-- **NocoDB Config**: Same as tracker-db.json (shares database)
-- **Status**: Set to `active: false` by default (activate after configuring MQTT credentials)
+- **MQTT Location verarbeiten** (Code Node):
+  - Parses JSON from `message` field
+  - Validates required fields: `lat`, `lon`, `tst`
+  - Skips invalid messages with `continue`
+  - Sets `alwaysOutputData: true` to handle empty results
+  - Timezone: Europe/Berlin for `display_time`
 
-## Modifying the Workflows
+- **Speichere in NocoDB**:
+  - Operation: `create`
+  - Maps 12 fields from JSON to NocoDB columns
+  - Includes telemetry: `battery` (from `mqtt_data.battery`), `speed` (from `mqtt_data.velocity`)
 
-### Important Considerations
-1. **Both workflows are active by default** - test changes carefully to avoid disrupting live tracking
-2. **JavaScript code nodes** use n8n's execution environment (not vanilla Node.js)
-3. **Date formatting** uses `de-DE` locale - change in "Location verarbeiten" node if needed
-4. **CORS** is configured for `*` (all origins) - restrict for production security
+- **Webhook - Location API**:
+  - Path: `/location`
+  - Webhook ID: `location-api-endpoint`
+  - Response Mode: `lastNode`
+  - CORS: Allowed origins = `*`
 
-### tracker.json Specific
-- Shell commands execute in n8n's runtime environment - ensure `/tmp` is writable
-- The 100-entry limit prevents unbounded growth - adjust in "Merge mit History" node
-- Consider moving from `/tmp` to persistent storage for production (see README.md)
+## Common Modifications
 
-### tracker-db.json & tracker-mqtt.json Specific
-- NocoDB sorting requires array structure: `[{field: "timestamp", direction: "desc"}]`
-- No client-side entry limit (relies on database capacity)
-- Requires valid NocoDB credentials and accessible database
-- Both workflows write to the same NocoDB table
+### Adding a New Device
 
-### tracker-mqtt.json Specific
-- Requires MQTT broker configuration before activation
-- Topic pattern can be adjusted to match your MQTT setup
-- Data transformation maps OwnTracks format to NocoDB schema
-- MQTT data fields (accuracy, battery, velocity) are extracted but not persisted to database
+**Step 1: Update index.html device mappings (lines 142-152)**
+```javascript
+const DEVICE_NAMES = {
+    '10': 'Joachim Pixel',
+    '11': 'Huawei Smartphone',
+    '12': 'New Device Name'  // Add this line
+};
 
-### Common Modifications
+const DEVICE_COLORS = {
+    '10': '#e74c3c',
+    '11': '#3498db',
+    '12': '#2ecc71',  // Add this line (green)
+    'default': '#95a5a6'
+};
+```
 
-**Change history limit (tracker.json only)**:
-In "Merge mit History" node, change `locations.slice(0, 100)` to desired limit
+**Step 2: Configure OwnTracks app**
+- Set Tracker ID (`tid`) to match the key (e.g., "12")
+- Topic will be `owntracks/user/12`
+- The workflow automatically picks up new devices
 
-**Change date format**:
-In "Location verarbeiten" node, change `.toLocaleString('de-DE')` to desired locale
+### Changing Date/Time Format
 
-**Restrict CORS**:
-In "Webhook - Location API" node, change `Access-Control-Allow-Origin: *` to specific domain
+**In n8n workflow node "MQTT Location verarbeiten" (line 124):**
+```javascript
+// Current: German format with Berlin timezone
+const displayTime = new Date(timestampMs).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' });
 
-**Update web interface URL**:
-In "Telegram Bestätigung" node and `index.html:85`, update API endpoint URL
+// Change to US format:
+const displayTime = new Date(timestampMs).toLocaleString('en-US', { timeZone: 'America/New_York' });
+
+// Change to ISO format:
+const displayTime = new Date(timestampMs).toISOString();
+```
+
+### Restricting CORS (Security)
+
+**In n8n workflow node "Webhook - Location API" (lines 65-75):**
+```javascript
+// Current (insecure):
+{ "name": "Access-Control-Allow-Origin", "value": "*" }
+
+// Change to specific domain:
+{ "name": "Access-Control-Allow-Origin", "value": "https://web.unixweb.home64.de" }
+```
+
+### Adding New NocoDB Fields
+
+**Example: Store accuracy and altitude**
+
+**Step 1: Add columns in NocoDB:**
+- `accuracy` (Number)
+- `altitude` (Number)
+
+**Step 2: Update "MQTT Location verarbeiten" node (line 124):**
+```javascript
+mqtt_data: {
+    accuracy: mqttData.acc,
+    altitude: mqttData.alt,
+    battery: mqttData.batt,
+    velocity: mqttData.vel,
+    // ... existing fields
+}
+```
+
+**Step 3: Update "Speichere in NocoDB" node to map new fields:**
+```javascript
+{ "fieldName": "accuracy", "fieldValue": "={{ $json.mqtt_data.accuracy }}" },
+{ "fieldName": "altitude", "fieldValue": "={{ $json.mqtt_data.altitude }}" }
+```
+
+### Changing MQTT Topic Filter
+
+**In node "MQTT Trigger" (line 104):**
+```javascript
+// Current: All OwnTracks topics
+topics: "owntracks/#"
+
+// Change to specific user:
+topics: "owntracks/joachim/#"
+
+// Change to specific device:
+topics: "owntracks/joachim/pixel"
+
+// Multiple topics:
+topics: "owntracks/joachim/#,owntracks/lisa/#"
+```
+
+### Updating API Endpoint URL
+
+**In index.html (line 178):**
+```javascript
+// Current:
+const API_URL = 'https://n8n.unixweb.home64.de/webhook/location';
+
+// Change to your n8n instance:
+const API_URL = 'https://your-n8n.example.com/webhook/location';
+```
+
+### Changing Auto-Refresh Interval
+
+**In index.html (line 419):**
+```javascript
+// Current: 5 seconds
+refreshInterval = setInterval(loadLocations, 5000);
+
+// Change to 10 seconds:
+refreshInterval = setInterval(loadLocations, 10000);
+
+// Change to 30 seconds:
+refreshInterval = setInterval(loadLocations, 30000);
+```
 
 ## Repository Contents
 
-- **tracker.json** - Telegram with file-based storage (simple, no database)
-- **tracker-db.json** - Telegram with NocoDB storage (production-ready)
-- **tracker-mqtt.json** - MQTT/OwnTracks with NocoDB storage (IoT devices)
-- **index.html** - Leaflet.js web interface for map visualization
-- **locations-example.csv** - Example data format for testing
-- **README.md** - Detailed German documentation with setup and usage instructions
+| File | Description |
+|------|-------------|
+| `n8n-tracker.json` | n8n workflow - MQTT location capture + API endpoint |
+| `index.html` | Web interface with multi-layer maps and device filtering |
+| `database-example.csv` | Sample NocoDB export showing actual data structure |
+| `README.md` | Comprehensive German documentation (setup, usage, troubleshooting) |
+| `CLAUDE.md` | This file - technical architecture documentation |
 
-## MQTT/OwnTracks Integration
+## Important Gotchas and Edge Cases
 
-The **tracker-mqtt.json** workflow is designed for OwnTracks-compatible MQTT location data.
+### 1. Device Identification via `username` Field
+- The `username` field contains the OwnTracks tracker ID (`tid`), not a username
+- The web interface filters devices by `username`, not by `first_name` or `marker_label`
+- **Example**: Device with `tid: "10"` will have `username: "10"` in database
+- Device names are hardcoded in `index.html` (lines 142-145) - must be manually updated
 
-### Setup Requirements
-1. Configure MQTT broker credentials in n8n
-2. Update the credential ID in tracker-mqtt.json (currently placeholder: `MQTT_CREDENTIAL_ID`)
-3. Import workflow into n8n
-4. Activate the workflow
+### 2. MQTT Message Validation
+- The workflow does NOT filter by `_type: "location"` despite what older documentation says
+- All MQTT messages are processed; validation happens in the JavaScript code node
+- Messages missing `lat`, `lon`, or `tst` are silently skipped with `continue`
+- **Result**: Non-location MQTT messages don't cause errors, they're just ignored
 
-### OwnTracks Configuration
-Configure your OwnTracks app/device to publish to the same MQTT broker:
-- **Topic pattern**: `owntracks/user/device` (workflow subscribes to `owntracks/#`)
-- **Mode**: MQTT
-- **Expected message format**: JSON with `_type: "location"`
+### 3. Time Filter Default
+- The web interface defaults to **1 hour** time filter (line 125)
+- This means newly deployed users won't see historical data unless they change the filter
+- Consider changing default to `24h` or `all` for better initial experience
 
-### Data Flow
-1. OwnTracks device publishes location to MQTT broker
-2. n8n MQTT trigger receives message
-3. Filter checks for `_type: "location"`
-4. Data transformation maps MQTT fields to NocoDB schema
-5. Location stored in same database as Telegram locations
-6. Available via same `/location` API endpoint
+### 4. Circular Marker Icon Implementation
+- Markers use SVG `divIcon` with a navigation-style clock hand (lines 337-345)
+- The clock hand is purely decorative, does NOT represent actual direction/heading
+- This replaced standard Leaflet pin icons in recent commits (see commit 4bec87d)
 
-### Distinguishing Data Sources
-In the database:
-- **Telegram entries**: Have real `user_id` and `chat_id` values, `first_name`/`last_name` from Telegram profile
-- **MQTT entries**: Have `user_id: 0` and `chat_id: 0`, use `tid` (tracker ID) in name fields
+### 5. Speed Unit Conversion
+- OwnTracks sends velocity in **m/s** (`vel` field)
+- Stored in database as m/s in `speed` column
+- Converted to km/h in web UI with `speed * 3.6` (line 329)
+- **Important**: If you display speed elsewhere, remember to convert
+
+### 6. Battery Data May Be Null
+- Not all OwnTracks messages include battery data
+- The code checks for `battery !== undefined && battery !== null` before displaying (line 323)
+- Same applies to `speed` field (line 328)
+
+### 7. CORS Configuration
+- API has CORS set to `*` (all origins allowed)
+- This is intentional for development but **insecure for production**
+- See "Restricting CORS" section for how to fix
+
+### 8. Error Workflow Reference
+- The workflow references error workflow ID `0bBZzSE6SUzVsif5`
+- This error workflow is NOT included in the repository export
+- If importing to a new n8n instance, errors will fail silently without this workflow
+
+### 9. Timezone Handling
+- All timestamps are converted to Europe/Berlin timezone (line 124 in workflow)
+- This is hardcoded in the JavaScript transformation
+- Database stores ISO 8601 UTC timestamps, but `display_time` is Berlin time

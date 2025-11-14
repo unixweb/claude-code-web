@@ -1,200 +1,307 @@
 # Location Tracker für n8n
 
-Ein umfassendes n8n-Workflow-System zur Standort-Verfolgung mit mehreren Datenquellen und erweiterten Visualisierungsmöglichkeiten.
+Ein MQTT-basiertes Location-Tracking-System mit n8n, NocoDB und interaktiver Web-Visualisierung für OwnTracks-Geräte.
 
 ## Überblick
 
-Dieses Repository enthält **drei n8n-Workflows** für Location Tracking mit verschiedenen Speicher- und Datenquellen-Optionen:
+Dieses Repository enthält ein **MQTT-basiertes Location-Tracking-System** mit folgenden Komponenten:
 
-1. **tracker.json** - Telegram-basiert mit Datei-Speicherung (einfach, keine Datenbank)
-2. **tracker-db.json** - Telegram-basiert mit NocoDB-Speicherung (produktionsreif, persistent)
-3. **tracker-mqtt.json** - MQTT-basiert mit NocoDB-Speicherung (für OwnTracks/IoT-Geräte)
+- **n8n-tracker.json** - n8n-Workflow zur MQTT-Datenerfassung und API-Bereitstellung
+- **index.html** - Interaktive Web-Oberfläche mit Leaflet.js
 
-Zusätzlich bietet das Repository **zwei Web-Oberflächen** zur Visualisierung:
-- **index.html** - Erweiterte Oberfläche mit Filterung, mehreren Kartenebenen und Multi-Source-Support
-- **index_owntrack.html** - Vereinfachte Oberfläche mit MQTT-spezifischen Features (Batterie, Geschwindigkeit)
+Das System empfängt Location-Updates von OwnTracks-kompatiblen Geräten über MQTT, speichert diese in einer NocoDB-Datenbank und bietet sowohl eine REST-API als auch eine Web-Visualisierung mit Echtzeit-Updates.
 
 ## Funktionen
 
 ### Workflow-Features
-- **Multi-Source-Erfassung**: Standorte über Telegram-Bot oder MQTT/OwnTracks
-- **Flexible Speicherung**: Wahl zwischen Datei-basiert (einfach) oder NocoDB (persistent, skalierbar)
-- **Historien-Verwaltung**:
-  - tracker.json: Letzte 100 Standorte (konfigurierbar)
-  - tracker-db.json / tracker-mqtt.json: Unbegrenzt (Datenbank-basiert)
-- **REST-API**: Einheitlicher `/location` Endpunkt für alle Workflows
-- **Telegram-Benachrichtigungen**: Automatische Bestätigung mit Koordinaten und Kartenlink
-- **Echtzeit-Updates**: 5-Sekunden Auto-Refresh für Live-Tracking
+- **MQTT-Erfassung**: Automatischer Empfang von OwnTracks-Standortdaten über MQTT
+- **Persistente Speicherung**: Unbegrenzte Historie in NocoDB-Datenbank
+- **Telemetrie-Daten**: Batteriestatus und Geschwindigkeit werden mitgespeichert
+- **REST-API**: JSON-Endpunkt für externe Anwendungen
+- **Fehlerbehandlung**: Validierung und Fehlertoleranz bei ungültigen MQTT-Nachrichten
 
 ### Web-Oberflächen-Features
-- **📍 Interaktive Karten** mit Leaflet.js
-- **🗺️ Mehrere Kartenebenen**: Standard, Satellit, Gelände, Dunkel-Modus
-- **📡 Datenquellen-Filter**: Telegram, MQTT oder kombiniert
-- **👤 Benutzer/Geräte-Filter**: Separate Ansicht pro Person/Gerät
-- **⏱️ Zeitfilter**: 1h, 6h, 24h, 7 Tage, 30 Tage
-- **🔄 Toggle Auto-Refresh**: An/Aus-Schaltung für Live-Updates
-- **📊 Standort-Historie**: Polyline-Darstellung des Bewegungspfads
-- **🔋 MQTT-Telemetrie**: Batterie, Geschwindigkeit, Genauigkeit (index_owntrack.html)
+- **📍 Interaktive Karte** mit Leaflet.js
+- **🗺️ 4 Kartenebenen**: Standard (OpenStreetMap), Satellit (Esri), Gelände (OpenTopoMap), Dunkel-Modus (CartoDB)
+- **📱 Geräte-Filter**: Separate Ansicht pro Gerät
+- **⏱️ Zeitfilter**: 1h, 3h, 6h, 12h, 24h
+- **🔄 Auto-Refresh**: Toggle-fähig, 5-Sekunden-Intervall
+- **📊 Bewegungshistorie**: Farbcodierte Polyline-Darstellung pro Gerät
+- **🔋 Telemetrie-Anzeige**: Batteriestatus und Geschwindigkeit in Popups
+- **🎨 Geräte-spezifische Farben**: Unterschiedliche Farben pro Gerät
 
 ## Voraussetzungen
 
-### Basis-Anforderungen (alle Workflows)
-- Eine laufende n8n-Instanz (Version 1.0+)
-- Zugriff auf n8n-Credentials-Management
+### Basis-Anforderungen
+- Eine laufende **n8n-Instanz** (Version 1.0+)
+- **NocoDB-Instanz** mit API-Zugriff
+- **MQTT-Broker** (z.B. Mosquitto)
+- **OwnTracks-App** oder kompatibles MQTT-Gerät
 
-### Workflow-spezifische Anforderungen
+### MQTT-Broker
+Wenn noch kein MQTT-Broker vorhanden ist:
 
-**tracker.json (Datei-basiert)**:
-- Schreibrechte für `/tmp/n8n-locations.json` auf dem n8n-Server
-- Telegram-Bot mit gültigem API-Token
+```bash
+# Ubuntu/Debian
+sudo apt install mosquitto mosquitto-clients
 
-**tracker-db.json (NocoDB)**:
-- NocoDB-Instanz mit API-Zugriff
-- NocoDB-Token mit Schreibrechten
-- Telegram-Bot mit gültigem API-Token
+# Mosquitto starten
+sudo systemctl start mosquitto
+sudo systemctl enable mosquitto
 
-**tracker-mqtt.json (MQTT)**:
-- MQTT-Broker (z.B. Mosquitto)
-- MQTT-Credentials mit Subscribe-Rechten auf `owntracks/#`
-- NocoDB-Instanz (siehe tracker-db.json)
-- OwnTracks-App oder kompatibles MQTT-Gerät
+# Test
+mosquitto_sub -h localhost -p 1883 -t 'owntracks/#' -v
+```
 
 ## Installation
 
-### Schritt 1: Workflow wählen und importieren
+### Schritt 1: n8n-Workflow importieren
 
-Wähle den passenden Workflow für deinen Anwendungsfall:
-
-| Workflow | Empfohlen für | Vorteile | Nachteile |
-|----------|---------------|----------|-----------|
-| **tracker.json** | Testen, Prototyping | Einfach, keine DB nötig | Begrenzte Historie, /tmp-Speicher |
-| **tracker-db.json** | Produktion (Telegram) | Persistent, unbegrenzt | NocoDB erforderlich |
-| **tracker-mqtt.json** | IoT-Geräte, OwnTracks | Multi-Gerät-Support | MQTT-Broker + NocoDB |
-
-**Import-Schritte**:
 1. Öffne deine n8n-Instanz
-2. Navigiere zu "Workflows" → "Import from File"
-3. Wähle die gewünschte `.json` Datei aus
+2. Navigiere zu **Workflows** → **Import from File**
+3. Wähle `n8n-tracker.json` aus diesem Repository
+4. Workflow wird als "Telegram Location Tracker - NocoDB" importiert (Name kann angepasst werden)
 
-### Schritt 2: Credentials konfigurieren
+### Schritt 2: NocoDB-Datenbank einrichten
 
-#### Telegram-Bot (tracker.json & tracker-db.json)
+#### NocoDB-Tabelle erstellen
 
-1. Erstelle einen Bot über [@BotFather](https://t.me/botfather):
+1. Erstelle ein neues Project in NocoDB
+2. Erstelle eine Tabelle mit folgendem Schema:
+
+| Spaltenname | Datentyp | Beschreibung |
+|-------------|----------|--------------|
+| `latitude` | Decimal | Breitengrad |
+| `longitude` | Decimal | Längengrad |
+| `timestamp` | DateTime | Zeitstempel (ISO 8601) |
+| `user_id` | Number | Immer 0 für MQTT |
+| `first_name` | Text | Tracker-ID (z.B. "10") |
+| `last_name` | Text | Source-Typ (z.B. "fused") |
+| `username` | Text | Tracker-ID (wie first_name) |
+| `marker_label` | Text | Anzeigename für Karte |
+| `display_time` | Text | Formatierter Zeitstempel |
+| `chat_id` | Number | Immer 0 für MQTT |
+| `battery` | Number | Batteriestatus (0-100) |
+| `speed` | Decimal | Geschwindigkeit in m/s |
+
+3. Notiere **Project ID** und **Table ID** aus der NocoDB-URL:
    ```
-   /newbot
-   Wähle Name: "My Location Tracker"
-   Wähle Username: "my_location_tracker_bot"
+   https://nocodb.example.com/nc/PROJECT_ID/TABLE_ID
    ```
-2. Kopiere das API-Token (Format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
-3. In n8n:
-   - Gehe zu "Credentials" → "Create New"
-   - Wähle "Telegram API"
-   - Gib das Access Token ein
-   - Speichere als "Telegram account n8n-munich-bot" (oder passe Workflow-Nodes an)
 
-#### NocoDB (tracker-db.json & tracker-mqtt.json)
+#### NocoDB API-Token generieren
 
-1. Erstelle in NocoDB:
-   - Ein neues Project
-   - Eine Tabelle mit dem Schema (siehe unten)
-2. Generiere einen API-Token:
-   - NocoDB: Account Settings → Tokens → Create Token
-3. In n8n:
-   - Gehe zu "Credentials" → "Create New"
-   - Wähle "NocoDB API Token"
-   - Gib Token und Base-URL ein
-   - Notiere die Credential-ID für den Workflow
+1. In NocoDB: **Account Settings** → **Tokens** → **Create Token**
+2. Kopiere den generierten Token
 
-**NocoDB Tabellen-Schema**:
+### Schritt 3: Credentials in n8n konfigurieren
+
+#### MQTT-Credentials
+
+1. In n8n: **Credentials** → **Create New**
+2. Wähle **"MQTT"**
+3. Konfiguriere:
+   - **Protocol**: mqtt (oder mqtts für TLS)
+   - **Host**: Dein MQTT-Broker (z.B. `localhost` oder `broker.example.com`)
+   - **Port**: 1883 (Standard) oder 8883 (TLS)
+   - **Username**: MQTT-Benutzername
+   - **Password**: MQTT-Passwort
+4. Speichere als "MQTT account"
+
+#### NocoDB-Credentials
+
+1. In n8n: **Credentials** → **Create New**
+2. Wähle **"NocoDB API Token"**
+3. Konfiguriere:
+   - **API Token**: Token aus Schritt 2
+   - **Base URL**: NocoDB-URL (z.B. `https://nocodb.example.com`)
+4. Speichere als "NocoDB Token account"
+
+### Schritt 4: Workflow-IDs anpassen
+
+Öffne den importierten Workflow in n8n und passe an:
+
+**In den Nodes "Lade Daten aus NocoDB" und "Speichere in NocoDB":**
+- **Project ID**: Deine NocoDB-Projekt-ID (ersetze `pdxl4cx4dbu9nxi`)
+- **Table ID**: Deine NocoDB-Tabellen-ID (ersetze `m8pqj5ixgnnrzkg`)
+
+**Credential-Zuordnung prüfen:**
+- MQTT Trigger → Wähle deine "MQTT account" Credentials
+- NocoDB-Nodes → Wähle deine "NocoDB Token account" Credentials
+
+### Schritt 5: OwnTracks-App konfigurieren
+
+1. **OwnTracks-App installieren** (Android/iOS)
+
+2. **MQTT-Modus aktivieren:**
+   - Öffne OwnTracks → **Preferences**
+   - **Mode**: MQTT
+   - **Host**: Dein MQTT-Broker (z.B. `broker.example.com`)
+   - **Port**: 1883 (oder 8883 für TLS)
+   - **Username**: MQTT-Benutzername
+   - **Password**: MQTT-Passwort
+   - **Device ID** (tid): z.B. "10" oder "11" (wichtig für Geräte-Identifikation!)
+   - **Tracker ID** (tid): Gleicher Wert wie Device ID
+
+3. **TLS/Verschlüsselung** (optional aber empfohlen):
+   - Port auf 8883 ändern
+   - TLS aktivieren
+
+4. **Tracking-Einstellungen:**
+   - **Monitoring**: Signifikante Standortänderungen
+   - **Move Mode**: 100m (oder nach Bedarf)
+
+### Schritt 6: Web-Oberfläche konfigurieren
+
+#### API-Endpunkt anpassen
+
+Öffne `index.html` und passe die API-URL an (Zeile 178):
+
+```javascript
+const API_URL = 'https://deine-n8n-instanz.de/webhook/location';
 ```
-Tabelle: Locations
-- latitude (Decimal)
-- longitude (Decimal)
-- timestamp (DateTime)
-- user_id (Number)
-- first_name (Text)
-- last_name (Text)
-- username (Text)
-- marker_label (Text)
-- display_time (Text)
-- chat_id (Number)
+
+**Webhook-URL finden:**
+- In n8n: Öffne den Workflow
+- Klicke auf den Node "Webhook - Location API"
+- Die URL steht unter "Webhook URLs" (z.B. `https://n8n.example.com/webhook/location`)
+
+#### Geräte-Namen konfigurieren
+
+Passe die Geräte-Zuordnung in `index.html` an (Zeilen 142-152):
+
+```javascript
+const DEVICE_NAMES = {
+    '10': 'Joachim Pixel',    // Device ID '10' → Anzeigename
+    '11': 'Huawei Smartphone'  // Device ID '11' → Anzeigename
+};
+
+const DEVICE_COLORS = {
+    '10': '#e74c3c', // Rot
+    '11': '#3498db', // Blau
+    'default': '#95a5a6' // Grau für unbekannte Geräte
+};
 ```
 
-#### MQTT-Broker (tracker-mqtt.json)
+**Wichtig:** Die Keys (`'10'`, `'11'`) müssen mit der **Tracker ID (tid)** aus OwnTracks übereinstimmen!
 
-1. Installiere einen MQTT-Broker (z.B. Mosquitto):
+#### Web-Oberfläche hosten
+
+**Option 1: Webserver (empfohlen)**
+```bash
+# Apache
+sudo cp index.html /var/www/html/tracker/
+
+# nginx
+sudo cp index.html /usr/share/nginx/html/tracker/
+```
+
+**Option 2: Lokaler Test**
+- Öffne `index.html` direkt im Browser
+- Funktioniert nur, wenn CORS korrekt konfiguriert ist
+
+**Option 3: Static Hosting**
+- GitHub Pages
+- Netlify
+- Vercel
+
+### Schritt 7: Workflow aktivieren und testen
+
+1. **Workflow aktivieren:**
+   - In n8n: Öffne den Workflow
+   - Klicke auf **"Active"** (Toggle oben rechts)
+   - Prüfe, dass alle Nodes grün sind (keine roten Fehler)
+
+2. **Testen:**
+   - Öffne OwnTracks-App
+   - Sende einen Location-Update (App sendet automatisch oder manuell triggern)
+   - Prüfe in n8n die **Execution History**
+   - Öffne die Web-Oberfläche → Standort sollte erscheinen
+
+3. **API-Test:**
    ```bash
-   # Ubuntu/Debian
-   sudo apt install mosquitto mosquitto-clients
+   curl https://deine-n8n-instanz.de/webhook/location
    ```
-2. In n8n:
-   - Gehe zu "Credentials" → "Create New"
-   - Wähle "MQTT"
-   - Gib Broker-URL, Port, Username, Passwort ein
-3. Passe im Workflow die Credential-ID an (aktuell Platzhalter: `MQTT_CREDENTIAL_ID`)
-
-### Schritt 3: Workflow-IDs anpassen (nur bei NocoDB)
-
-Öffne den importierten Workflow und passe an:
-- **Project ID**: Deine NocoDB-Projekt-ID
-- **Table ID**: Deine NocoDB-Tabellen-ID
-
-Diese findest du in der NocoDB-URL:
-```
-https://nocodb.example.com/nc/PROJECT_ID/TABLE_ID
-```
-
-### Schritt 4: Workflow aktivieren
-
-1. Öffne den importierten Workflow
-2. Prüfe alle Credentials (rote Nodes = fehlende/falsche Credentials)
-3. Klicke auf "Active" um den Workflow zu aktivieren
-
-### Schritt 5: Testen
-
-**Telegram-Workflows**:
-1. Öffne deinen Telegram-Bot
-2. Sende einen Standort (📎 → Standort)
-3. Du solltest eine Bestätigungsnachricht erhalten
-
-**MQTT-Workflow**:
-1. Konfiguriere OwnTracks-App mit deinem MQTT-Broker
-2. Sende einen Location-Update
-3. Prüfe in n8n die Workflow-Execution-Historie
+   Sollte JSON zurückgeben mit `success: true` und Location-Daten
 
 ## Verwendung
 
-### Standort senden (Telegram)
+### Standort senden (OwnTracks)
 
-1. Öffne den Chat mit deinem Telegram-Bot
-2. Klicke auf das Büroklammer-Symbol (📎)
-3. Wähle "Standort"
-4. Sende deinen aktuellen Standort oder wähle einen auf der Karte
-5. Der Bot bestätigt mit Details und einem Link zur Web-Ansicht
+Die OwnTracks-App sendet automatisch Location-Updates basierend auf deinen Einstellungen:
 
-### Standort senden (MQTT/OwnTracks)
+- **Automatisch**: Bei signifikanten Standortänderungen
+- **Manuell**: In der App auf "Publish" klicken
+- **Intervall**: Konfigurierbar in App-Einstellungen
 
-1. **OwnTracks-App konfigurieren**:
-   - Mode: MQTT
-   - Host: Dein MQTT-Broker
-   - Port: 1883 (oder dein Port)
-   - Username/Password: Deine MQTT-Credentials
-   - Device ID: z.B. "le" (wird als Marker-Label verwendet)
+**MQTT-Topic-Format:**
+```
+owntracks/user/device
+```
+Beispiel: `owntracks/joachim/pixel`
 
-2. **Tracking starten**:
-   - OwnTracks sendet automatisch Location-Updates
-   - Konfiguriere Intervall und Genauigkeit in der App
+**Nachrichtenformat (JSON):**
+```json
+{
+  "_type": "location",
+  "lat": 48.1351,
+  "lon": 11.5820,
+  "tst": 1700000000,
+  "tid": "10",
+  "batt": 85,
+  "vel": 5,
+  "acc": 10,
+  "alt": 520
+}
+```
 
-### REST-API abrufen
+### Web-Oberfläche verwenden
 
-Alle Workflows stellen den gleichen API-Endpunkt zur Verfügung:
+#### Filter-Optionen
 
-```bash
+**🗺️ Kartenebene:**
+- **Standard**: OpenStreetMap (gut für Navigation)
+- **Satellit**: Esri World Imagery (Luftbild)
+- **Gelände**: OpenTopoMap (Höhenlinien)
+- **Dunkel**: CartoDB Dark (Nachtmodus)
+
+**📱 Gerät-Filter:**
+- **Alle Geräte**: Zeigt alle MQTT-Geräte
+- **Einzelnes Gerät**: Wähle aus Dropdown (wird dynamisch befüllt)
+
+**⏱️ Zeitfilter:**
+- **1 Stunde**: Nur letzte Stunde (Standard)
+- **3/6/12/24 Stunden**: Weitere Zeiträume
+- Alle älteren Punkte werden ausgeblendet
+
+**🔄 Auto-Refresh:**
+- **AN** (grün): Aktualisiert alle 5 Sekunden
+- **AUS** (rot): Keine automatische Aktualisierung
+
+#### Karte verstehen
+
+**Marker:**
+- **Größe**: Größter Marker = neuester Standort (32x32px), kleinere = Historie (16x16px)
+- **Farbe**: Geräte-spezifisch (siehe `DEVICE_COLORS` Konfiguration)
+- **Icon**: Kreisförmig mit dekorativem Zeiger (kein tatsächlicher Richtungsindikator)
+
+**Polylines:**
+- Verbinden Standorte chronologisch
+- Farbe entspricht Gerät
+- Zeigen Bewegungspfad
+
+**Popups:**
+- Klicke auf Marker für Details
+- Zeigt: Gerätename, Zeitstempel, Batterie %, Geschwindigkeit (km/h)
+
+### REST-API verwenden
+
+**Endpunkt:**
+```
 GET https://deine-n8n-instanz.de/webhook/location
 ```
 
-**Beispiel-Antwort**:
+**Beispiel-Antwort:**
 ```json
 {
   "success": true,
@@ -202,587 +309,631 @@ GET https://deine-n8n-instanz.de/webhook/location
     "latitude": 48.1351,
     "longitude": 11.5820,
     "timestamp": "2025-11-14T10:30:00.000Z",
-    "user_id": 123456789,
-    "first_name": "Max",
-    "last_name": "Mustermann",
-    "username": "maxmuster",
-    "marker_label": "Max Mustermann",
+    "user_id": 0,
+    "first_name": "10",
+    "last_name": "fused",
+    "username": "10",
+    "marker_label": "10",
     "display_time": "14.11.2025, 11:30:00",
-    "chat_id": 123456789
+    "chat_id": 0,
+    "battery": 85,
+    "speed": 5.2
   },
-  "history": [...],
+  "history": [
+    { /* weitere Location-Objekte */ }
+  ],
   "total_points": 42,
   "last_updated": "2025-11-14T10:30:00.000Z"
 }
 ```
 
-**MQTT-spezifische Felder** (nur in index_owntrack.html angezeigt):
-```json
-{
-  "battery": 85,
-  "speed": 5.2,
-  "accuracy": 10,
-  "altitude": 520
-}
-```
-
-### Web-Oberflächen
-
-Das Repository enthält zwei Web-Interfaces mit unterschiedlichen Features:
-
-#### index.html - Erweiterte Multi-Source-Oberfläche
-
-**Empfohlen für**: Produktionsumgebungen mit mehreren Datenquellen
-
-**Features**:
-- 🗺️ **4 Kartenebenen**: Standard (OSM), Satellit (Esri), Gelände (OpenTopoMap), Dunkel (CartoDB)
-- 📡 **Datenquellen-Filter**: Telegram, MQTT oder alle
-- 👤 **Benutzer/Gerät-Filter**: Dynamische Liste aller aktiven Quellen
-- ⏱️ **Zeitfilter**: 1h, 6h, 24h, 7d, 30d oder alle
-- 📊 **Erweiterte Visualisierung**: Farbcodierte Marker (rot=neuester, blau=Historie)
-- 🔄 **Auto-Refresh**: Toggle-fähig, 5-Sekunden-Intervall
-
-**Verwendung**:
-1. Öffne `index.html` im Browser
-2. Nutze die Filter-Dropdowns zur Datenauswahl:
-   - **Kartenebene**: Wähle zwischen Standard, Satellit, Gelände, Dunkel
-   - **Datenquelle**: Telegram, MQTT oder beide
-   - **Benutzer/Gerät**: Filter nach spezifischem User/Device
-   - **Zeitraum**: Begrenze Historie auf gewünschten Zeitraum
-3. Klicke Marker für Details
-4. Toggle Auto-Refresh nach Bedarf
-
-#### index_owntrack.html - MQTT/OwnTracks-fokussierte Oberfläche
-
-**Empfohlen für**: OwnTracks-Nutzer, die Telemetrie-Daten benötigen
-
-**Features**:
-- 🔋 **Batteriestatus**: Anzeige des Gerätebatteriestands
-- 🚗 **Geschwindigkeitsanzeige**: km/h-Anzeige aus MQTT-Daten
-- 📍 **Vereinfachte Ansicht**: Fokus auf aktuellen Standort
-- 🔄 **Auto-Refresh**: Gleicher Toggle wie index.html
-
-**Verwendung**:
-1. Öffne `index_owntrack.html` im Browser
-2. Die Karte zeigt automatisch den neuesten OwnTracks-Standort
-3. Popups enthalten MQTT-spezifische Daten (Batterie, Speed)
-
-### Konfiguration der Web-Oberflächen
-
-**API-Endpunkt anpassen**:
-
-In beiden HTML-Dateien die API-URL ändern:
+**Integration in eigene Apps:**
 ```javascript
-// Für index.html (Zeile 175)
-// Für index_owntrack.html (Zeile 85)
-const API_URL = 'https://deine-n8n-instanz.de/webhook/location';
+// JavaScript Beispiel
+fetch('https://n8n.example.com/webhook/location')
+  .then(response => response.json())
+  .then(data => {
+    console.log('Aktueller Standort:', data.current);
+    console.log('Batterie:', data.current.battery + '%');
+  });
 ```
 
-**Deployment-Optionen**:
-1. **Webserver-Hosting** (empfohlen für Produktion):
-   ```bash
-   # Apache
-   cp index.html /var/www/html/tracker/
+```python
+# Python Beispiel
+import requests
 
-   # nginx
-   cp index.html /usr/share/nginx/html/tracker/
-   ```
+response = requests.get('https://n8n.example.com/webhook/location')
+data = response.json()
 
-2. **Lokaler Test**:
-   - Öffne die `.html` Datei direkt im Browser
-   - Funktioniert nur, wenn CORS korrekt konfiguriert ist
-
-3. **GitHub Pages / Static Hosting**:
-   - Pushe die HTML-Dateien zu GitHub
-   - Aktiviere GitHub Pages
-   - Oder nutze Netlify, Vercel, etc.
-
-**CORS-Konfiguration**:
-Die n8n-Workflows haben CORS bereits aktiviert (`Access-Control-Allow-Origin: *`). Für Produktion sollte dies eingeschränkt werden (siehe Sicherheitshinweise)
+if data['success']:
+    current = data['current']
+    print(f"Position: {current['latitude']}, {current['longitude']}")
+    print(f"Batterie: {current['battery']}%")
+```
 
 ## Workflow-Architektur
 
-### tracker.json (Datei-basiert)
+### Übersicht
 
-**Standort-Erfassung**:
-```
-Telegram Trigger
-    ↓
-Hat Location? (Filter)
-    ↓
-Location verarbeiten (JS: Daten extrahieren & formatieren)
-    ↓
-Lade existierende Daten (Shell: cat /tmp/n8n-locations.json)
-    ↓
-Merge mit History (JS: Array merge + 100-Entry-Limit)
-    ↓
-Speichere in File (Shell: echo > /tmp/n8n-locations.json)
-    ↓
-Telegram Bestätigung (Nachricht mit Koordinaten & Kartenlink)
-```
+Der **n8n-tracker.json** Workflow besteht aus zwei unabhängigen Flows:
 
-**API-Endpunkt**:
 ```
-Webhook - Location API (GET /webhook/location)
-    ↓
-Lade Daten für API (Shell: cat /tmp/n8n-locations.json)
-    ↓
-Format API Response (JS: JSON strukturieren)
-    ↓
-JSON Response (CORS + JSON zurückgeben)
-```
+Flow 1: MQTT Location Capture
+┌──────────────┐
+│ MQTT Trigger │ (owntracks/#)
+└──────┬───────┘
+       │
+       v
+┌──────────────────────────┐
+│ MQTT Location verarbeiten│ (JavaScript)
+└──────┬───────────────────┘
+       │
+       v
+┌──────────────────┐
+│ Speichere in     │ (NocoDB Create)
+│ NocoDB           │
+└──────────────────┘
 
-### tracker-db.json (NocoDB)
-
-**Standort-Erfassung**:
-```
-Telegram Trigger
-    ↓
-Hat Location? (Filter)
-    ↓
-Location verarbeiten (JS: Daten extrahieren & formatieren)
-    ↓
-Speichere in NocoDB (NocoDB: Create Record)
-    ↓
-[Parallel]
-    ↓
-Hole letzten Eintrag (NocoDB: List Records, Limit 1, Sort desc)
-    ↓
-Zähle Einträge (NocoDB: Count)
-    ↓
-Merge (JS: Combine Results)
-    ↓
-Bereite Bestätigung vor (JS: Format Message)
-    ↓
-Telegram Bestätigung (Nachricht mit Stats & Link)
+Flow 2: Location API
+┌──────────────────────┐
+│ Webhook - Location   │ (GET /webhook/location)
+│ API                  │
+└──────┬───────────────┘
+       │
+       v
+┌──────────────────────┐
+│ Lade Daten aus       │ (NocoDB Get All)
+│ NocoDB               │
+└──────┬───────────────┘
+       │
+       v
+┌──────────────────────┐
+│ Format API Response  │ (JavaScript)
+└──────┬───────────────┘
+       │
+       v
+┌──────────────────────┐
+│ JSON Response        │ (CORS + JSON)
+└──────────────────────┘
 ```
 
-**API-Endpunkt**:
-```
-Webhook - Location API (GET /webhook/location)
-    ↓
-Lade Daten aus NocoDB (NocoDB: List Records, Sort by timestamp desc)
-    ↓
-Format API Response (JS: JSON strukturieren)
-    ↓
-JSON Response (CORS + JSON zurückgeben)
-```
+### Flow 1: MQTT Location Capture (Details)
 
-### tracker-mqtt.json (MQTT/OwnTracks)
+**MQTT Trigger:**
+- Subscribed auf Topic: `owntracks/#`
+- Empfängt alle OwnTracks-Messages
+- Keine Filter auf Trigger-Ebene
 
-**Standort-Erfassung** (vereinfachter Single-Path):
-```
-MQTT Trigger (Topic: owntracks/#)
-    ↓
-Ist Location? (Filter: _type === "location")
-    ↓
-MQTT Location verarbeiten (JS: OwnTracks → NocoDB Schema Mapping)
-    ↓
-Speichere in NocoDB (NocoDB: Create Record)
+**MQTT Location verarbeiten (JavaScript):**
+```javascript
+// Wichtige Schritte:
+1. Parse JSON aus message-Feld
+2. Validiere lat, lon, tst (erforderlich)
+3. Konvertiere Unix-Timestamp → ISO 8601
+4. Extrahiere tid (Tracker ID) → username
+5. Formatiere displayTime (de-DE, Europe/Berlin)
+6. Packe Telemetrie in mqtt_data Objekt
+7. Überspringe ungültige Nachrichten mit continue
 ```
 
-**Keine separate Bestätigung** (MQTT ist unidirektional)
+**Speichere in NocoDB:**
+- Erstellt neuen Datensatz pro Location
+- Mappt 12 Felder (inkl. battery, speed)
+- Keine Duplikatsprüfung (alle Updates werden gespeichert)
 
-**API-Endpunkt**: Shared mit tracker-db.json (gleiche NocoDB-Tabelle)
+### Flow 2: Location API (Details)
+
+**Webhook - Location API:**
+- HTTP GET auf `/location`
+- CORS: `Access-Control-Allow-Origin: *`
+- Keine Authentifizierung (öffentlich!)
+
+**Lade Daten aus NocoDB:**
+- Holt ALLE Datensätze (`returnAll: true`)
+- Keine Sortierung auf DB-Ebene
+- Keine Pagination
+
+**Format API Response (JavaScript):**
+```javascript
+// Schritte:
+1. Sammle alle Location-Objekte
+2. Sortiere nach timestamp (neueste zuerst)
+3. Wähle neuste als "current"
+4. Baue Response-Struktur
+5. Zähle total_points
+```
+
+**JSON Response:**
+- Content-Type: application/json
+- CORS-Header gesetzt
+- Keine Kompression
 
 ## Datenspeicherung & Schema
 
-### tracker.json (Datei-basiert)
+### NocoDB-Konfiguration
 
-**Speicherung**:
-- **Speicherort**: `/tmp/n8n-locations.json`
-- **Format**: JSON-Array mit Location-Objekten
-- **Maximale Einträge**: 100 (älteste werden automatisch entfernt)
-- **Persistenz**: Überlebt n8n-Neustarts, aber nicht System-Neustarts (da `/tmp`)
+**Aktuelle IDs im Workflow:**
+- **Project ID**: `pdxl4cx4dbu9nxi` (muss angepasst werden!)
+- **Table ID**: `m8pqj5ixgnnrzkg` (muss angepasst werden!)
+- **Credential**: "NocoDB Token account"
 
-**Empfehlung für Produktion**:
-Ändere den Speicherort zu einem persistenten Pfad:
+### Datenbank-Schema
 
-In den Nodes **"Lade existierende Daten"** und **"Lade Daten für API"**:
-```bash
-cat /var/lib/n8n/locations.json 2>/dev/null || echo '[]'
-```
+Vollständiges Schema mit Beispieldaten:
 
-In Node **"Speichere in File"**:
-```bash
-echo '...' > /var/lib/n8n/locations.json
-```
+| Feld | Typ | Beispielwert | Beschreibung |
+|------|-----|--------------|--------------|
+| `latitude` | Decimal | `48.1383784` | Breitengrad (WGS84) |
+| `longitude` | Decimal | `11.4276172` | Längengrad (WGS84) |
+| `timestamp` | DateTime | `2025-11-14T18:00:37.000Z` | UTC-Zeitstempel (ISO 8601) |
+| `user_id` | Number | `0` | Immer 0 für MQTT-Geräte |
+| `first_name` | Text | `"11"` | Tracker-ID (tid) |
+| `last_name` | Text | `"fused"` | Location-Source |
+| `username` | Text | `"11"` | Tracker-ID (gleich wie first_name) |
+| `marker_label` | Text | `"11"` | Anzeigename für Karte |
+| `display_time` | Text | `"14.11.2025, 19:00:37"` | Formatiert (de-DE) |
+| `chat_id` | Number | `0` | Immer 0 für MQTT-Geräte |
+| `battery` | Number | `73` | Batteriestatus (0-100%) |
+| `speed` | Decimal | `0` | Geschwindigkeit in m/s |
 
-### tracker-db.json & tracker-mqtt.json (NocoDB)
+### OwnTracks-Feld-Mapping
 
-**Speicherung**:
-- **Backend**: NocoDB Datenbank
-- **Project ID**: `pdxl4cx4dbu9nxi` (Beispiel - muss angepasst werden)
-- **Table ID**: `m8pqj5ixgnnrzkg` (Beispiel - muss angepasst werden)
-- **Maximale Einträge**: Unbegrenzt (Datenbank-basiert)
-- **Persistenz**: Vollständig persistent
-- **Shared Database**: Beide Workflows nutzen die gleiche Tabelle
+| NocoDB-Feld | OwnTracks-Feld | Transformation |
+|-------------|----------------|----------------|
+| `latitude` | `lat` | Direkt |
+| `longitude` | `lon` | Direkt |
+| `timestamp` | `tst` | Unix → ISO 8601 |
+| `user_id` | - | Konstant: `0` |
+| `first_name` | `tid` | Tracker-ID |
+| `last_name` | `source` | Location-Quelle |
+| `username` | `tid` | Tracker-ID |
+| `marker_label` | `tid` | Tracker-ID |
+| `display_time` | `tst` | Formatiert (de-DE, Berlin) |
+| `chat_id` | - | Konstant: `0` |
+| `battery` | `batt` | Direkt |
+| `speed` | `vel` | m/s (nicht konvertiert!) |
 
-### Location-Objekt Schema
-
-**Alle Workflows** nutzen das gleiche Schema für Konsistenz:
-
-```json
-{
-  "latitude": 48.1351,              // Decimal (Breitengrad)
-  "longitude": 11.5820,             // Decimal (Längengrad)
-  "timestamp": "2025-11-14T10:30:00.000Z",  // ISO 8601 DateTime
-  "user_id": 123456789,             // Number (Telegram ID oder 0 für MQTT)
-  "first_name": "Max",              // Text (Telegram: Vorname, MQTT: tracker ID)
-  "last_name": "Mustermann",        // Text (Telegram: Nachname, MQTT: source)
-  "username": "maxmuster",          // Text (Telegram: @username, MQTT: tracker ID)
-  "marker_label": "Max Mustermann", // Text (Anzeigename für Karte)
-  "display_time": "14.11.2025, 11:30:00",  // Text (de-DE formatiert)
-  "chat_id": 123456789              // Number (Telegram Chat ID oder 0 für MQTT)
-}
-```
-
-### Unterscheidung Telegram vs. MQTT
-
-In der Datenbank/API können Einträge anhand folgender Felder unterschieden werden:
-
-| Feld | Telegram | MQTT/OwnTracks |
-|------|----------|----------------|
-| `user_id` | Echte Telegram-User-ID (z.B. 123456789) | `0` |
-| `chat_id` | Echte Telegram-Chat-ID (z.B. 123456789) | `0` |
-| `first_name` | Telegram-Vorname (z.B. "Max") | Tracker-ID (z.B. "le") |
-| `last_name` | Telegram-Nachname (z.B. "Mustermann") | Source (z.B. "fused") |
-| `marker_label` | "Vorname Nachname" | "TID @ SSID" (z.B. "le @ HomeWifi") |
-
-### MQTT-spezifische Daten
-
-OwnTracks sendet zusätzliche Telemetrie-Daten, die **nicht** in der Datenbank gespeichert werden, aber im Node "MQTT Location verarbeiten" verfügbar sind:
-
-```json
-{
-  "acc": 10,        // Genauigkeit in Metern
-  "alt": 520,       // Höhe über Meeresspiegel
-  "batt": 85,       // Batteriestatus (0-100%)
-  "vel": 5,         // Geschwindigkeit (m/s)
-  "conn": "w",      // Verbindungstyp (w=WiFi, m=Mobile)
-  "t": "u"          // Trigger (u=User, t=Timer, etc.)
-}
-```
-
-Diese Daten können bei Bedarf zum Schema hinzugefügt werden (erfordert Anpassung der NocoDB-Tabelle und Workflows)
+**Nicht gespeicherte OwnTracks-Felder:**
+- `acc` - Genauigkeit (Meter)
+- `alt` - Höhe (Meter)
+- `cog` - Kurs über Grund
+- `conn` - Verbindungstyp (w/m)
+- `_id` - Device Identifier
 
 ## Anpassungen & Customization
 
-### Anzahl gespeicherter Standorte ändern (nur tracker.json)
+### Neues Gerät hinzufügen
 
-Im Node **"Merge mit History"** die Limit-Logik anpassen:
+**Schritt 1: OwnTracks-App konfigurieren**
+- Setze Tracker ID (tid) auf eindeutige ID, z.B. "12"
+- Konfiguriere MQTT-Verbindung wie oben beschrieben
+
+**Schritt 2: index.html anpassen (Zeilen 142-152)**
 
 ```javascript
-// Aktuell: 100 Einträge
-if (locations.length > 100) {
-  locations = locations.slice(0, 100);
-}
+const DEVICE_NAMES = {
+    '10': 'Joachim Pixel',
+    '11': 'Huawei Smartphone',
+    '12': 'Neues Gerät'  // HINZUFÜGEN
+};
 
-// Ändern zu z.B. 500 Einträge:
-if (locations.length > 500) {
-  locations = locations.slice(0, 500);
-}
+const DEVICE_COLORS = {
+    '10': '#e74c3c',
+    '11': '#3498db',
+    '12': '#2ecc71',  // HINZUFÜGEN (Grün)
+    'default': '#95a5a6'
+};
 ```
 
-**Hinweis**: NocoDB-Workflows haben kein Client-Side-Limit.
+**Farb-Vorschläge:**
+- `#e74c3c` - Rot
+- `#3498db` - Blau
+- `#2ecc71` - Grün
+- `#f39c12` - Orange
+- `#9b59b6` - Lila
+- `#1abc9c` - Türkis
 
-### Datumsformat ändern
+**Schritt 3: Testen**
+- Sende Location von neuem Gerät
+- Prüfe Web-Oberfläche → Gerät sollte im Dropdown erscheinen
+- Marker sollte in konfigurierter Farbe erscheinen
 
-Im Node **"Location verarbeiten"** (Telegram) oder **"MQTT Location verarbeiten"** (MQTT) das Locale anpassen:
+### Zeitzone ändern
+
+**In n8n-Workflow, Node "MQTT Location verarbeiten" (Zeile 124):**
 
 ```javascript
-// Aktuell: Deutsch (de-DE)
-const displayTime = new Date(messageDate * 1000).toLocaleString('de-DE');
+// Aktuell: Berlin-Zeit
+const displayTime = new Date(timestampMs).toLocaleString('de-DE', {
+    timeZone: 'Europe/Berlin'
+});
 
-// Ändern zu z.B. Englisch (en-US):
-const displayTime = new Date(messageDate * 1000).toLocaleString('en-US');
+// Ändern zu New York:
+const displayTime = new Date(timestampMs).toLocaleString('en-US', {
+    timeZone: 'America/New_York'
+});
 
-// Oder eigenes Format:
-const displayTime = new Date(messageDate * 1000).toLocaleString('de-DE', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit'
+// Ändern zu UTC:
+const displayTime = new Date(timestampMs).toISOString();
+
+// Eigenes Format:
+const displayTime = new Date(timestampMs).toLocaleString('de-DE', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
 });
 ```
 
-### CORS-Beschränkung (Sicherheit)
+### Standard-Zeitfilter ändern
 
-Im Node **"Webhook - Location API"** unter **Options → Response Headers**:
+**In index.html (Zeile 125):**
 
-```javascript
-// Aktuell (unsicher für Produktion): Alle Origins erlaubt
-"Access-Control-Allow-Origin": "*"
+```html
+<!-- Aktuell: 1 Stunde (1h) -->
+<option value="1h" selected>Letzte Stunde</option>
 
-// Besser für Produktion: Spezifische Domain
-"Access-Control-Allow-Origin": "https://deine-domain.de"
-
-// Oder mehrere Domains (erfordert Logik im Node):
-// const allowedOrigins = ['https://domain1.de', 'https://domain2.de'];
-// const origin = request.headers.origin;
-// return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+<!-- Ändern zu 24 Stunden: -->
+<option value="1h">Letzte Stunde</option>
+<option value="24h" selected>Letzte 24 Stunden</option>
 ```
 
-### Auto-Refresh Intervall anpassen
+### Auto-Refresh-Intervall anpassen
 
-In **index.html** oder **index_owntrack.html**:
+**In index.html (Zeile 419):**
 
 ```javascript
 // Aktuell: 5 Sekunden (5000ms)
 refreshInterval = setInterval(loadLocations, 5000);
 
-// Ändern zu z.B. 10 Sekunden:
+// Ändern zu 10 Sekunden:
 refreshInterval = setInterval(loadLocations, 10000);
 
-// Oder 30 Sekunden:
-refreshInterval = setInterval(loadLocations, 30000);
+// Ändern zu 1 Minute:
+refreshInterval = setInterval(loadLocations, 60000);
 ```
 
-### MQTT Topic ändern
+### CORS einschränken (Sicherheit!)
 
-Im Node **"MQTT Trigger"** (tracker-mqtt.json):
+**In n8n-Workflow, Node "JSON Response" (Zeile 67):**
+
+```json
+// Aktuell (unsicher):
+{
+  "name": "Access-Control-Allow-Origin",
+  "value": "*"
+}
+
+// Ändern zu spezifischer Domain:
+{
+  "name": "Access-Control-Allow-Origin",
+  "value": "https://web.example.com"
+}
+```
+
+### Weitere NocoDB-Felder speichern
+
+**Beispiel: Genauigkeit (accuracy) und Höhe (altitude) hinzufügen**
+
+**Schritt 1: NocoDB-Spalten erstellen**
+- `accuracy` (Number)
+- `altitude` (Number)
+
+**Schritt 2: Workflow-Node "MQTT Location verarbeiten" anpassen:**
+
+```javascript
+// In mqtt_data Objekt ergänzen:
+mqtt_data: {
+    accuracy: mqttData.acc,
+    altitude: mqttData.alt,
+    battery: mqttData.batt,
+    velocity: mqttData.vel,
+    course: mqttData.cog,
+    connection: mqttData.conn,
+    device_id: mqttData._id
+}
+```
+
+**Schritt 3: Node "Speichere in NocoDB" anpassen:**
+
+Füge in `fieldsUi.fieldValues` hinzu:
+```json
+{
+  "fieldName": "accuracy",
+  "fieldValue": "={{ $json.mqtt_data.accuracy }}"
+},
+{
+  "fieldName": "altitude",
+  "fieldValue": "={{ $json.mqtt_data.altitude }}"
+}
+```
+
+**Schritt 4: index.html Popups erweitern (Zeile 320):**
+
+```javascript
+// Nach Speed-Anzeige hinzufügen:
+if (loc.accuracy !== undefined && loc.accuracy !== null) {
+    popupContent += `<br>📍 Genauigkeit: ${loc.accuracy}m`;
+}
+
+if (loc.altitude !== undefined && loc.altitude !== null) {
+    popupContent += `<br>⛰️ Höhe: ${loc.altitude}m`;
+}
+```
+
+### MQTT-Topic einschränken
+
+**In n8n-Workflow, Node "MQTT Trigger" (Zeile 104):**
 
 ```javascript
 // Aktuell: Alle OwnTracks-Topics
-Topic: owntracks/#
+topics: "owntracks/#"
 
-// Ändern zu spezifischem User/Device:
-Topic: owntracks/joachim/phone
+// Nur spezifischer Benutzer:
+topics: "owntracks/joachim/#"
 
-// Oder eigene Topic-Struktur:
-Topic: location/+/+  // location/user/device
-```
+// Nur spezifisches Gerät:
+topics: "owntracks/joachim/pixel"
 
-Passe auch den Filter-Node **"Ist Location?"** entsprechend an.
-
-### NocoDB Tabellen-Felder erweitern
-
-Um MQTT-Telemetrie-Daten zu speichern:
-
-1. **In NocoDB**: Füge neue Spalten hinzu:
-   - `battery` (Number)
-   - `speed` (Decimal)
-   - `accuracy` (Number)
-   - `altitude` (Number)
-
-2. **Im Workflow** (Node "MQTT Location verarbeiten"):
-   ```javascript
-   // Füge zu locationData hinzu:
-   battery: json.batt || null,
-   speed: json.vel || null,
-   accuracy: json.acc || null,
-   altitude: json.alt || null
-   ```
-
-3. **In index_owntrack.html**: Daten sind bereits ausgelesen (Zeilen 137-145)
-
-### Kartenebene Standardauswahl ändern
-
-In **index.html**:
-
-```javascript
-// Aktuell: Standard (OSM)
-let currentLayer = mapLayers.standard;
-
-// Ändern zu z.B. Satellit:
-let currentLayer = mapLayers.satellite;
-
-// Und Dropdown synchronisieren:
-document.getElementById('mapLayerSelect').value = 'satellite';
+// Mehrere Topics:
+topics: "owntracks/joachim/#,owntracks/lisa/#"
 ```
 
 ## Sicherheitshinweise
 
-### Kritisch (vor Produktionseinsatz beheben!)
+### Kritisch (sofort beheben!)
 
-1. **API-Authentifizierung fehlt**:
-   - Der `/location` Endpunkt ist **öffentlich ohne Authentifizierung** zugänglich
-   - Jeder kann Standortdaten abrufen, wenn er die URL kennt
-   - **Empfehlung**: Implementiere API-Key-Authentifizierung in n8n oder nutze einen Reverse-Proxy mit Auth
+**1. API ohne Authentifizierung**
+- ⚠️ **Problem**: Jeder kann Standortdaten abrufen, wenn er die URL kennt
+- ⚠️ **Risiko**: DSGVO-Verstoß, Privatsphäre-Verletzung
+- ✅ **Lösung**:
+  - Implementiere API-Key-Authentifizierung in n8n
+  - Oder nutze Reverse-Proxy mit Basic Auth
+  - Oder beschränke Zugriff per IP-Whitelist
 
-2. **CORS für alle Origins offen**:
-   - `Access-Control-Allow-Origin: *` erlaubt Zugriff von jeder Domain
-   - **Risiko**: Cross-Site-Scripting (XSS), Datenabfluss
-   - **Empfehlung**: Beschränke auf deine spezifische Domain (siehe Anpassungen)
+**2. CORS offen für alle Domains**
+- ⚠️ **Problem**: `Access-Control-Allow-Origin: *`
+- ⚠️ **Risiko**: XSS-Angriffe, unautorisierten Zugriff
+- ✅ **Lösung**: Beschränke auf deine Domain (siehe "CORS einschränken")
 
-3. **Standortdaten sind hochsensibel (DSGVO)**:
-   - Personenbezogene Daten (Name, User-ID, exakte Koordinaten)
-   - **Pflichten**: Informationspflicht, Einwilligung, Löschkonzept
-   - **Empfehlung**:
-     - Hole explizite Einwilligung von Nutzern ein
-     - Implementiere automatische Löschung alter Daten (z.B. >30 Tage)
-     - Dokumentiere Datenschutzmaßnahmen
+**3. DSGVO-Compliance**
+- ⚠️ **Problem**: Personenbezogene Standortdaten ohne Einwilligung/Löschkonzept
+- ⚠️ **Pflichten**: Informationspflicht, Einwilligung, Auskunftsrecht, Löschung
+- ✅ **Lösung**:
+  - Hole explizite Einwilligung von Nutzern ein
+  - Implementiere automatische Löschung alter Daten (z.B. >30 Tage)
+  - Dokumentiere Datenschutzmaßnahmen
+  - Stelle Löschfunktion bereit
 
-### Wichtig (empfohlene Sicherheitsmaßnahmen)
+### Wichtig (empfohlen)
 
-4. **Credentials-Sicherheit**:
-   - **Telegram-Bot-Token**: Niemals in Code oder Logs speichern
-   - **NocoDB-Token**: Nutze Read-Only-Token für API-Endpunkt (wenn möglich)
-   - **MQTT-Credentials**: Nutze TLS-Verschlüsselung (Port 8883)
+**4. MQTT ohne TLS**
+- ⚠️ **Problem**: Unverschlüsselte Übertragung auf Port 1883
+- ⚠️ **Risiko**: Standortdaten können abgefangen werden
+- ✅ **Lösung**:
+  - Aktiviere TLS in Mosquitto (Port 8883)
+  - Konfiguriere OwnTracks mit TLS
 
-5. **File-basierte Speicherung** (tracker.json):
-   - `/tmp` Verzeichnis ist evtl. für andere Benutzer lesbar
-   - **Empfehlung**: Setze Dateiberechtigungen (`chmod 600`)
-   - Besser: Nutze NocoDB-Variante für Produktion
+**5. Keine Rate-Limiting**
+- ⚠️ **Problem**: API kann unbegrenzt oft abgerufen werden
+- ⚠️ **Risiko**: DoS-Angriff, Server-Überlastung
+- ✅ **Lösung**: Implementiere Rate-Limiting (z.B. via nginx)
 
-6. **Rate Limiting fehlt**:
-   - API kann beliebig oft abgerufen werden
-   - **Risiko**: DoS-Angriff, Server-Überlastung
-   - **Empfehlung**: Implementiere Rate Limiting (z.B. via nginx)
+**6. NocoDB-Token zu weitreichend**
+- ⚠️ **Problem**: Token hat möglicherweise Schreibrechte für API-Endpunkt
+- ⚠️ **Risiko**: Datenmanipulation
+- ✅ **Lösung**: Nutze separaten Read-Only-Token für API-Endpunkt (falls möglich)
 
 ### Best Practices
 
-- **HTTPS erzwingen**: Stelle sicher, dass n8n-Webhooks nur über HTTPS erreichbar sind
+- **HTTPS erzwingen**: n8n-Webhooks nur über HTTPS erreichbar machen
 - **Monitoring**: Überwache ungewöhnliche API-Zugriffe
 - **Backup**: Sichere NocoDB-Datenbank regelmäßig
-- **Updates**: Halte n8n, NocoDB und alle Dependencies aktuell
+- **Updates**: Halte n8n, NocoDB, Mosquitto und Dependencies aktuell
+- **Secrets**: Speichere Credentials nur in n8n Credential Store, nicht im Code
+- **Logging**: Aktiviere Audit-Logging für Zugriffe
 
 ## Fehlerbehebung
 
-### Telegram-Bot antwortet nicht
-
-**Symptome**: Standort wird gesendet, aber keine Bestätigung
-
-**Lösungen**:
-1. Prüfe, ob Workflow aktiv ist (grüner "Active"-Toggle in n8n)
-2. Prüfe Telegram-Credentials:
-   ```bash
-   # In n8n: Credentials → Telegram → Test Connection
-   ```
-3. Prüfe Workflow-Execution-Historie:
-   - n8n → Workflows → tracker → Executions
-   - Suche nach Fehlermeldungen (rot markiert)
-4. Prüfe Telegram-Bot-Webhook:
-   ```bash
-   curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo
-   ```
-
-### API gibt leere/fehlerhafte Daten zurück
-
-**Symptome**: API antwortet mit `[]`, `null` oder HTTP 500
-
-**Lösungen**:
-
-**Für tracker.json (Datei-basiert)**:
-1. Prüfe, ob Datei existiert:
-   ```bash
-   ls -la /tmp/n8n-locations.json
-   ```
-2. Prüfe Dateiinhalt:
-   ```bash
-   cat /tmp/n8n-locations.json | jq .
-   ```
-3. Prüfe Berechtigungen:
-   ```bash
-   # n8n-User muss lesen können
-   chmod 644 /tmp/n8n-locations.json
-   ```
-
-**Für tracker-db.json/tracker-mqtt.json (NocoDB)**:
-1. Teste NocoDB-Verbindung in n8n (Credentials → Test)
-2. Prüfe Project/Table IDs im Workflow
-3. Prüfe NocoDB-API direkt:
-   ```bash
-   curl -H "xc-token: YOUR_TOKEN" \
-     https://nocodb.example.com/api/v1/db/data/v1/PROJECT_ID/TABLE_ID
-   ```
-
-### MQTT-Daten kommen nicht an (tracker-mqtt.json)
+### MQTT-Daten kommen nicht an
 
 **Symptome**: OwnTracks sendet, aber nichts in NocoDB gespeichert
 
-**Lösungen**:
-1. Teste MQTT-Broker-Verbindung:
+**Lösungen:**
+
+1. **MQTT-Broker testen:**
    ```bash
    mosquitto_sub -h broker.example.com -p 1883 -u user -P pass -t 'owntracks/#' -v
    ```
-2. Prüfe OwnTracks-Konfiguration:
+   Sollte Nachrichten anzeigen, wenn OwnTracks sendet.
+
+2. **OwnTracks-Konfiguration prüfen:**
    - Mode: MQTT (nicht HTTP!)
    - Topic: `owntracks/USER/DEVICE`
-   - TLS: Nur wenn Broker TLS nutzt
-3. Prüfe n8n MQTT-Node:
-   - Credentials korrekt
-   - Topic-Pattern passt (`owntracks/#`)
-4. Prüfe Workflow-Filter:
-   - Node "Ist Location?" muss `_type: "location"` filtern
-5. Debug mit Workflow-Execution:
-   - Trigger manuell mit Test-Payload
-   ```json
-   {
-     "_type": "location",
-     "lat": 48.1351,
-     "lon": 11.5820,
-     "tid": "le",
-     "tst": 1731582600
-   }
+   - Verbindungsstatus in App prüfen
+   - Test-Nachricht senden (Publish Button)
+
+3. **n8n MQTT-Node prüfen:**
+   - Credentials korrekt?
+   - Topic-Pattern passt? (`owntracks/#`)
+   - Workflow ist aktiviert?
+
+4. **n8n Execution History prüfen:**
+   - Workflows → n8n-tracker → Executions
+   - Gibt es Executions?
+   - Gibt es Fehler (rot markiert)?
+
+5. **Debug mit manuellem Test:**
+   ```bash
+   # Sende Test-Nachricht per mosquitto_pub
+   mosquitto_pub -h broker.example.com -p 1883 -u user -P pass \
+     -t 'owntracks/test/device' \
+     -m '{"_type":"location","lat":48.1351,"lon":11.5820,"tid":"10","tst":1700000000,"batt":85,"vel":5}'
    ```
+
+### API gibt leere Daten zurück
+
+**Symptome**: API antwortet mit `{"history": []}` oder `"current": null`
+
+**Lösungen:**
+
+1. **NocoDB-Verbindung testen:**
+   - In n8n: Credentials → NocoDB → Test Connection
+   - Sollte grüner Haken erscheinen
+
+2. **NocoDB direkt testen:**
+   ```bash
+   curl -H "xc-token: YOUR_TOKEN" \
+     "https://nocodb.example.com/api/v1/db/data/v1/PROJECT_ID/TABLE_ID"
+   ```
+   Sollte JSON mit Daten zurückgeben.
+
+3. **Project/Table IDs prüfen:**
+   - Öffne NocoDB-Tabelle im Browser
+   - URL enthält die IDs: `/nc/PROJECT_ID/TABLE_ID`
+   - Vergleiche mit IDs in n8n-Workflow
+
+4. **Daten in NocoDB vorhanden?**
+   - Öffne Tabelle in NocoDB
+   - Sind Einträge vorhanden?
+   - Wenn nicht: Problem liegt bei MQTT-Erfassung (siehe oben)
 
 ### Web-Oberfläche zeigt keine Karte
 
 **Symptome**: Weiße Seite, Karte lädt nicht, Marker fehlen
 
-**Lösungen**:
-1. Prüfe Browser-Console (F12 → Console):
-   - CORS-Fehler? → Siehe Sicherheitshinweise
-   - 404 auf Leaflet.js? → CDN-Problem, lokale Kopie nutzen
+**Lösungen:**
+
+1. **Browser-Console prüfen (F12 → Console):**
+   - CORS-Fehler? → API-CORS-Header prüfen
+   - 404 auf Leaflet.js? → CDN-Problem (lokale Kopie nutzen)
    - API-Fehler? → Siehe "API gibt leere Daten zurück"
-2. Prüfe API-URL in HTML:
-   ```javascript
-   // index.html Zeile 175
-   // index_owntrack.html Zeile 85
-   const API_URL = 'https://...';  // Muss erreichbar sein!
-   ```
-3. Teste API direkt im Browser:
-   ```
-   https://deine-n8n-instanz.de/webhook/location
-   ```
-   Sollte JSON zurückgeben, nicht HTML/Fehlerseite
-4. Prüfe Netzwerk-Tab (F12 → Network):
-   - Status 200 für API-Request?
+   - JavaScript-Fehler? → Code-Syntax prüfen
+
+2. **API-URL prüfen:**
+   - In index.html Zeile 178: `const API_URL = '...'`
+   - URL muss erreichbar sein
+   - Test im Browser: URL direkt aufrufen → Sollte JSON zurückgeben
+
+3. **Netzwerk-Tab prüfen (F12 → Network):**
+   - Request zu API wird gesendet?
+   - Status 200 OK?
+   - Response enthält Daten?
    - CORS-Header vorhanden?
+
+4. **Leaflet.js CDN erreichbar?**
+   - Prüfe ob `https://unpkg.com/leaflet@1.9.4/dist/leaflet.js` geladen wird
+   - Falls CDN-Problem: Nutze lokale Kopie
 
 ### Koordinaten sind falsch/vertauscht
 
 **Symptome**: Marker erscheinen im Meer, falsche Position
 
-**Lösungen**:
-1. Prüfe Reihenfolge: **Latitude (Breitengrad) kommt vor Longitude (Längengrad)**
-   - Richtig: `[48.1351, 11.5820]` (lat, lon)
-   - Falsch: `[11.5820, 48.1351]` (lon, lat)
-2. Prüfe MQTT-Mapping (nur tracker-mqtt.json):
-   - Node "MQTT Location verarbeiten"
-   - `latitude: json.lat` (nicht `json.lon`!)
-3. Prüfe String-Parsing:
+**Lösungen:**
+
+1. **Reihenfolge prüfen:**
+   - Leaflet erwartet: `[latitude, longitude]`
+   - NICHT: `[longitude, latitude]`
+   - OwnTracks sendet korrekt: `lat`, `lon`
+
+2. **Daten in NocoDB prüfen:**
+   - Öffne Tabelle
+   - Ist `latitude` der Breitengrad (z.B. 48.x)?
+   - Ist `longitude` der Längengrad (z.B. 11.x)?
+   - Für München: ca. 48°N, 11°O
+
+3. **JavaScript-Code prüfen:**
    ```javascript
-   // Koordinaten müssen Numbers sein, nicht Strings!
-   const lat = parseFloat(loc.latitude);  // Gut
-   const lat = loc.latitude;              // Schlecht, wenn String
+   // RICHTIG:
+   const lat = parseFloat(loc.latitude);
+   const lon = parseFloat(loc.longitude);
+   L.marker([lat, lon])
+
+   // FALSCH:
+   L.marker([lon, lat])  // Vertauscht!
    ```
 
-### Standorte verschwinden nach System-Neustart (tracker.json)
+### Geräte-Filter zeigt nicht alle Geräte
 
-**Symptome**: Nach Neustart des Servers sind alle Standorte weg
+**Symptome**: Dropdown zeigt "Alle Geräte" aber keine einzelnen Geräte
 
-**Ursache**: `/tmp` wird bei System-Neustart geleert
+**Lösungen:**
 
-**Lösungen**:
-1. **Kurzfristig**: Nutze persistenten Pfad (siehe "Datenspeicherung & Schema")
-2. **Langfristig**: Wechsele zu tracker-db.json (NocoDB)
+1. **MQTT-Daten vorhanden?**
+   - API aufrufen und prüfen: Gibt es Einträge mit `user_id: 0`?
+   - Wenn nicht: Keine MQTT-Daten in Datenbank
+
+2. **username-Feld befüllt?**
+   - In NocoDB prüfen: Ist `username` gesetzt?
+   - Sollte gleich wie `first_name` sein (tid)
+
+3. **JavaScript-Console prüfen:**
+   ```javascript
+   // In Browser-Console (F12):
+   console.log(allData.history.filter(loc => loc.user_id == 0));
+   ```
+   Sollte MQTT-Einträge zeigen.
+
+4. **Filter-Code prüfen (index.html Zeile 267):**
+   ```javascript
+   let filteredData = allData.history.filter(loc => loc.user_id == 0);
+   ```
+   Muss MQTT-Daten filtern.
+
+### Geschwindigkeit wird nicht angezeigt
+
+**Symptome**: Popup zeigt keine Geschwindigkeit, obwohl OwnTracks sendet
+
+**Lösungen:**
+
+1. **OwnTracks sendet velocity?**
+   - Prüfe MQTT-Nachricht (mosquitto_sub)
+   - Sollte `vel` Feld enthalten
+
+2. **NocoDB-Feld `speed` vorhanden?**
+   - Tabellen-Schema prüfen
+   - Spalte `speed` (Decimal) muss existieren
+
+3. **Workflow speichert speed?**
+   - Node "Speichere in NocoDB" prüfen
+   - Mapping: `fieldName: "speed"`, `fieldValue: "={{ $json.mqtt_data.velocity }}"`
+
+4. **Null-Werte prüfen:**
+   - Nicht alle OwnTracks-Messages enthalten `vel`
+   - Code prüft auf `!== null` (index.html Zeile 328)
+
+### Batteriestatus zeigt 0% oder fehlt
+
+**Symptome**: Batterie wird als 0% angezeigt oder fehlt im Popup
+
+**Lösungen:**
+
+1. **OwnTracks sendet battery?**
+   - Android/iOS unterscheiden sich
+   - Manche Geräte senden kein `batt` Feld
+   - Prüfe MQTT-Nachricht
+
+2. **Berechtigungen in OwnTracks:**
+   - Android: Batterie-Optimierung deaktivieren
+   - iOS: Standortfreigabe "Immer" setzen
+
+3. **NocoDB-Wert prüfen:**
+   - Tabelle öffnen
+   - Ist `battery` befüllt?
+   - Typ Number (nicht Text!)
 
 ## Repository-Inhalte
 
-| Datei | Beschreibung | Typ |
-|-------|--------------|-----|
-| `tracker.json` | Telegram + Datei-Speicherung | n8n Workflow |
-| `tracker-db.json` | Telegram + NocoDB | n8n Workflow |
-| `tracker-mqtt.json` | MQTT/OwnTracks + NocoDB | n8n Workflow |
-| `index.html` | Erweiterte Multi-Source Web-UI | HTML/JavaScript |
-| `index_owntrack.html` | MQTT-fokussierte Web-UI | HTML/JavaScript |
-| `locations-example.csv` | Beispieldaten für Tests | CSV |
-| `README.md` | Diese Dokumentation | Markdown |
-| `CLAUDE.md` | Technische Architektur-Doku | Markdown |
+| Datei | Beschreibung |
+|-------|--------------|
+| `n8n-tracker.json` | n8n-Workflow für MQTT-Erfassung und API |
+| `index.html` | Web-Oberfläche mit Leaflet.js |
+| `database-example.csv` | Beispiel-Datenexport aus NocoDB |
+| `README.md` | Diese Dokumentation |
+| `CLAUDE.md` | Technische Architektur-Dokumentation |
 
 ## Lizenz
 
@@ -799,8 +950,9 @@ Dieses Projekt steht unter der **MIT-Lizenz** zur freien Verfügung.
 - [ ] API-Authentifizierung (API-Key, JWT)
 - [ ] Automatische Datenlöschung (DSGVO-Compliance)
 - [ ] Geofencing / Location-Alerts
-- [ ] Multi-Tenant-Support (mehrere Bots)
+- [ ] Multi-User-Support mit Zugriffsrechten
 - [ ] Erweiterte Statistiken (Distanz, Durchschnittsgeschwindigkeit)
-- [ ] Export-Funktion (GPX, KML)
+- [ ] Export-Funktion (GPX, KML, CSV)
 - [ ] Push-Notifications bei Location-Updates
 - [ ] Offline-Support für Web-UI (PWA)
+- [ ] Mobile App (React Native / Flutter)

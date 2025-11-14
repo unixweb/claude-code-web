@@ -1,0 +1,290 @@
+{
+  "name": "Telegram Location Tracker - NocoDB",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "location",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "116b19ae-d634-48cd-aae8-3d9a4dbfebf3",
+      "name": "Webhook - Location API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        336
+      ],
+      "webhookId": "location-api-endpoint"
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "getAll",
+        "projectId": "pdxl4cx4dbu9nxi",
+        "table": "m8pqj5ixgnnrzkg",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "e9b8577e-b736-4f3f-98e9-1309f5373f43",
+      "name": "Lade Daten aus NocoDB",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 2,
+      "position": [
+        448,
+        336
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "T9XuGr6CJD2W2BPO",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Baue API Response aus NocoDB-Daten\nconst locations = $input.all().map(item => item.json);\n\n// Sortiere nach timestamp (neueste zuerst)\nlocations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));\n\nconst current = locations.length > 0 ? locations[0] : null;\n\nreturn [{\n  json: {\n    success: true,\n    current: current,\n    history: locations,\n    total_points: locations.length,\n    last_updated: current ? current.timestamp : null\n  }\n}];"
+      },
+      "id": "771d0ec3-2248-4159-b03c-9382f60f765f",
+      "name": "Format API Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "2d096d00-8844-473a-91f0-5a9962b5ac28",
+      "name": "JSON Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        816,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "height": 544,
+        "width": 1104,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "388be06b-01ba-4e7b-8e5a-5be25fa4efa0",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "topics": "owntracks/#",
+        "options": {}
+      },
+      "id": "cadaab24-22b6-4c44-bee3-2a10f7b4a68c",
+      "name": "MQTT Trigger",
+      "type": "n8n-nodes-base.mqttTrigger",
+      "typeVersion": 1,
+      "position": [
+        336,
+        128
+      ],
+      "credentials": {
+        "mqtt": {
+          "id": "L07VVR2BDfDda6Zo",
+          "name": "MQTT account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrahiere MQTT Location-Daten für NocoDB\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    // Parse den JSON-String aus dem message-Feld\n    const mqttData = JSON.parse(item.json.message);\n    \n    // Validiere erforderliche Felder\n    if (!mqttData.lat || !mqttData.lon || !mqttData.tst) {\n      console.log('Fehlende Felder:', mqttData);\n      continue;\n    }\n    \n    // Timestamp (tst = Unix timestamp in seconds)\n    const timestampMs = mqttData.tst * 1000;\n    const timestamp = new Date(timestampMs).toISOString();\n    const displayTime = new Date(timestampMs).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' });\n    \n    // Erstelle marker_label aus tid (tracker ID)\n    const trackerLabel = mqttData.tid || 'Unknown';\n    \n    results.push({\n      json: {\n        latitude: mqttData.lat,\n        longitude: mqttData.lon,\n        timestamp: timestamp,\n        user_id: 0,\n        first_name: trackerLabel,\n        last_name: mqttData.source || 'mqtt',\n        username: mqttData.tid || '',\n        marker_label: trackerLabel,\n        display_time: displayTime,\n        chat_id: 0,\n        // Optional: Zusätzliche MQTT-Daten\n        mqtt_data: {\n          accuracy: mqttData.acc,\n          altitude: mqttData.alt,\n          battery: mqttData.batt,\n          velocity: mqttData.vel,\n          course: mqttData.cog,\n          connection: mqttData.conn,\n          device_id: mqttData._id\n        }\n      }\n    });\n  } catch (error) {\n    console.error('Parse-Fehler:', error.message);\n    continue;\n  }\n}\n\nreturn results;"
+      },
+      "id": "cc71dfb1-3f18-4e57-af6d-df952615ff46",
+      "name": "MQTT Location verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        128
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "create",
+        "projectId": "pdxl4cx4dbu9nxi",
+        "table": "m8pqj5ixgnnrzkg",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "latitude",
+              "fieldValue": "={{ $json.latitude }}"
+            },
+            {
+              "fieldName": "longitude",
+              "fieldValue": "={{ $json.longitude }}"
+            },
+            {
+              "fieldName": "timestamp",
+              "fieldValue": "={{ $json.timestamp }}"
+            },
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldName": "first_name",
+              "fieldValue": "={{ $json.first_name }}"
+            },
+            {
+              "fieldName": "last_name",
+              "fieldValue": "={{ $json.last_name }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $json.username }}"
+            },
+            {
+              "fieldName": "marker_label",
+              "fieldValue": "={{ $json.marker_label }}"
+            },
+            {
+              "fieldName": "display_time",
+              "fieldValue": "={{ $json.display_time }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $json.chat_id }}"
+            },
+            {
+              "fieldName": "battery",
+              "fieldValue": "={{ $json.mqtt_data.battery }}"
+            },
+            {
+              "fieldName": "speed",
+              "fieldValue": "={{ $json.mqtt_data.velocity }}"
+            }
+          ]
+        }
+      },
+      "id": "ea8305b8-3d7f-4b9a-8ba6-04406d21815f",
+      "name": "Speichere in NocoDB",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 2,
+      "position": [
+        832,
+        128
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "T9XuGr6CJD2W2BPO",
+          "name": "NocoDB Token account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Location API": {
+      "main": [
+        [
+          {
+            "node": "Lade Daten aus NocoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lade Daten aus NocoDB": {
+      "main": [
+        [
+          {
+            "node": "Format API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format API Response": {
+      "main": [
+        [
+          {
+            "node": "JSON Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MQTT Trigger": {
+      "main": [
+        [
+          {
+            "node": "MQTT Location verarbeiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MQTT Location verarbeiten": {
+      "main": [
+        [
+          {
+            "node": "Speichere in NocoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "0bBZzSE6SUzVsif5"
+  },
+  "versionId": "de17706a-a0ea-42ce-a069-dd09dce421d2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2f7fd37175cefa82de44e06b8af9ab9c01e7956018045d6efc4f7bf1588a41eb"
+  },
+  "id": "6P6dKqi4IKcJ521m",
+  "tags": [
+    {
+      "updatedAt": "2025-11-14T13:41:54.886Z",
+      "createdAt": "2025-11-14T13:41:54.886Z",
+      "id": "i5Azv4hS7iOZaiHp",
+      "name": "owntrack"
+    }
+  ]
+}
