@@ -8,16 +8,51 @@
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
         #map { height: 100vh; width: 100%; }
-        .info { 
-            position: absolute; 
-            top: 10px; 
-            right: 10px; 
-            background: white; 
-            padding: 15px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        .info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             z-index: 1000;
-            min-width: 200px;
+            min-width: 250px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .filter-section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .filter-section:last-of-type {
+            border-bottom: none;
+        }
+        .filter-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 5px;
+            display: block;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+        select:hover {
+            border-color: #4CAF50;
+        }
+        select:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
         }
         .toggle-btn {
             margin-top: 15px;
@@ -66,6 +101,45 @@
     <div class="info">
         <h3>📍 Location Tracker</h3>
         <div id="status">Lade...</div>
+
+        <div class="filter-section">
+            <label class="filter-label">🗺️ Kartenebene</label>
+            <select id="mapLayerSelect" onchange="changeMapLayer()">
+                <option value="standard">Standard (OpenStreetMap)</option>
+                <option value="satellite">Satellit (Esri)</option>
+                <option value="terrain">Gelände (OpenTopoMap)</option>
+                <option value="dark">Dunkel (CartoDB Dark)</option>
+            </select>
+        </div>
+
+        <div class="filter-section">
+            <label class="filter-label">📡 Datenquelle</label>
+            <select id="sourceFilter" onchange="applyFilters()">
+                <option value="all">Alle Quellen</option>
+                <option value="telegram">Nur Telegram</option>
+                <option value="mqtt">Nur MQTT/OwnTracks</option>
+            </select>
+        </div>
+
+        <div class="filter-section">
+            <label class="filter-label">👤 Benutzer/Gerät</label>
+            <select id="userFilter" onchange="applyFilters()">
+                <option value="all">Alle anzeigen</option>
+            </select>
+        </div>
+
+        <div class="filter-section">
+            <label class="filter-label">⏱️ Zeitraum</label>
+            <select id="timeFilter" onchange="applyFilters()">
+                <option value="all">Alle Zeitpunkte</option>
+                <option value="1h">Letzte Stunde</option>
+                <option value="6h">Letzte 6 Stunden</option>
+                <option value="24h">Letzte 24 Stunden</option>
+                <option value="7d">Letzte 7 Tage</option>
+                <option value="30d">Letzte 30 Tage</option>
+            </select>
+        </div>
+
         <button id="toggleBtn" class="toggle-btn active" onclick="toggleAutoRefresh()">
             <span class="status-indicator active"></span>
             Auto-Refresh: AN
@@ -76,42 +150,191 @@
     <script>
         // Karte initialisieren (München)
         const map = L.map('map').setView([48.1351, 11.5820], 12);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+
+        // Map layers
+        const mapLayers = {
+            standard: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            }),
+            terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap'
+            }),
+            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© CartoDB'
+            })
+        };
+
+        // Add default layer
+        let currentLayer = mapLayers.standard;
+        currentLayer.addTo(map);
 
         // API URL - anpassen an deine Domain
         const API_URL = 'https://n8n.unixweb.home64.de/webhook/location';
 
-        // Auto-Refresh State
+        // State
         let autoRefreshEnabled = true;
         let refreshInterval = null;
+        let allData = null;
+        let markerLayer = L.layerGroup().addTo(map);
+        let polylineLayer = L.layerGroup().addTo(map);
+
+        // Change map layer
+        function changeMapLayer() {
+            const selectedLayer = document.getElementById('mapLayerSelect').value;
+            map.removeLayer(currentLayer);
+            currentLayer = mapLayers[selectedLayer];
+            currentLayer.addTo(map);
+        }
+
+        // Filter data by source (Telegram/MQTT)
+        function filterBySource(locations) {
+            const sourceFilter = document.getElementById('sourceFilter').value;
+            if (sourceFilter === 'all') return locations;
+
+            return locations.filter(loc => {
+                if (sourceFilter === 'telegram') {
+                    return loc.user_id > 0; // Telegram has real user_id
+                } else if (sourceFilter === 'mqtt') {
+                    return loc.user_id === 0; // MQTT has user_id = 0
+                }
+                return true;
+            });
+        }
+
+        // Filter data by user/device
+        function filterByUser(locations) {
+            const userFilter = document.getElementById('userFilter').value;
+            if (userFilter === 'all') return locations;
+
+            return locations.filter(loc => {
+                const identifier = `${loc.first_name || ''} ${loc.last_name || ''}`.trim() || loc.username || 'Unknown';
+                return identifier === userFilter;
+            });
+        }
+
+        // Filter data by time range
+        function filterByTime(locations) {
+            const timeFilter = document.getElementById('timeFilter').value;
+            if (timeFilter === 'all') return locations;
+
+            const now = new Date();
+            const ranges = {
+                '1h': 60 * 60 * 1000,
+                '6h': 6 * 60 * 60 * 1000,
+                '24h': 24 * 60 * 60 * 1000,
+                '7d': 7 * 24 * 60 * 60 * 1000,
+                '30d': 30 * 24 * 60 * 60 * 1000
+            };
+
+            const cutoffTime = now - ranges[timeFilter];
+
+            return locations.filter(loc => {
+                const locTime = new Date(loc.timestamp);
+                return locTime >= cutoffTime;
+            });
+        }
+
+        // Update user filter dropdown with available users
+        function updateUserFilterOptions(locations) {
+            const userFilter = document.getElementById('userFilter');
+            const currentValue = userFilter.value;
+
+            // Get unique users
+            const users = new Set();
+            locations.forEach(loc => {
+                const identifier = `${loc.first_name || ''} ${loc.last_name || ''}`.trim() || loc.username || 'Unknown';
+                users.add(identifier);
+            });
+
+            // Rebuild options
+            userFilter.innerHTML = '<option value="all">Alle anzeigen</option>';
+            Array.from(users).sort().forEach(user => {
+                const option = document.createElement('option');
+                option.value = user;
+                option.textContent = user;
+                userFilter.appendChild(option);
+            });
+
+            // Restore previous selection if still available
+            if (currentValue !== 'all' && users.has(currentValue)) {
+                userFilter.value = currentValue;
+            }
+        }
+
+        // Apply all filters and update map
+        function applyFilters() {
+            if (!allData || !allData.history) return;
+
+            let filteredData = [...allData.history];
+
+            // Apply filters in sequence
+            filteredData = filterBySource(filteredData);
+            filteredData = filterByUser(filteredData);
+            filteredData = filterByTime(filteredData);
+
+            // Update map
+            displayLocations(filteredData);
+
+            // Update status
+            document.getElementById('status').innerHTML =
+                `Punkte: ${filteredData.length} / ${allData.total_points || 0}<br>` +
+                `Status: ${allData.success ? '✅ Verbunden' : '❌ Fehler'}`;
+        }
+
+        // Display filtered locations on map
+        function displayLocations(locations) {
+            // Clear existing markers and polylines
+            markerLayer.clearLayers();
+            polylineLayer.clearLayers();
+
+            if (locations.length === 0) return;
+
+            // Add markers
+            locations.forEach((loc, index) => {
+                const isLatest = index === 0;
+                const markerIcon = L.icon({
+                    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${isLatest ? 'red' : 'blue'}.png`,
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                });
+
+                L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
+                    .addTo(markerLayer)
+                    .bindPopup(`${loc.marker_label}<br>${loc.display_time}`);
+
+                if (isLatest) {
+                    map.setView([loc.latitude, loc.longitude], 15);
+                }
+            });
+
+            // Add polyline if multiple points
+            if (locations.length > 1) {
+                const coords = locations.map(h => [h.latitude, h.longitude]);
+                L.polyline(coords, { color: 'blue', weight: 3 }).addTo(polylineLayer);
+            }
+        }
 
         async function loadLocations() {
             try {
                 const response = await fetch(API_URL);
                 const data = await response.json();
-                
-                document.getElementById('status').innerHTML = 
-                    `Punkte: ${data.total_points || 0}<br>` +
-                    `Status: ${data.success ? '✅ Verbunden' : '❌ Fehler'}`;
-                
-                if (data.current) {
-                    const loc = data.current;
-                    L.marker([loc.latitude, loc.longitude])
-                        .addTo(map)
-                        .bindPopup(`${loc.marker_label}<br>${loc.display_time}`)
-                        .openPopup();
-                    
-                    map.setView([loc.latitude, loc.longitude], 15);
-                    
-                    // Historie als Linie
-                    if (data.history && data.history.length > 1) {
-                        const coords = data.history.map(h => [h.latitude, h.longitude]);
-                        L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
-                    }
+
+                allData = data;
+
+                // Update user filter dropdown
+                if (data.history && data.history.length > 0) {
+                    updateUserFilterOptions(data.history);
                 }
+
+                // Apply filters and display
+                applyFilters();
+
             } catch (error) {
                 document.getElementById('status').innerHTML = '❌ Verbindungsfehler';
                 console.error(error);
@@ -121,15 +344,12 @@
         function toggleAutoRefresh() {
             autoRefreshEnabled = !autoRefreshEnabled;
             const btn = document.getElementById('toggleBtn');
-            const indicator = btn.querySelector('.status-indicator');
-            
+
             if (autoRefreshEnabled) {
-                // Aktiviere Auto-Refresh
                 btn.className = 'toggle-btn active';
                 btn.innerHTML = '<span class="status-indicator active"></span>Auto-Refresh: AN';
                 startAutoRefresh();
             } else {
-                // Deaktiviere Auto-Refresh
                 btn.className = 'toggle-btn inactive';
                 btn.innerHTML = '<span class="status-indicator inactive"></span>Auto-Refresh: AUS';
                 stopAutoRefresh();
@@ -150,7 +370,7 @@
 
         // Initial laden
         loadLocations();
-        
+
         // Auto-refresh starten
         startAutoRefresh();
     </script>
