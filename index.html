@@ -308,8 +308,12 @@
                 // Sortiere nach Timestamp (neueste zuerst)
                 deviceLocs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                // Add markers
-                deviceLocs.forEach((loc, index) => {
+                // Add markers in reverse order (oldest first) so newest are on top
+                // But reverse the array for rendering while keeping track of which is latest
+                const reversedLocs = [...deviceLocs].reverse();
+
+                reversedLocs.forEach((loc, reverseIndex) => {
+                    const index = deviceLocs.length - 1 - reverseIndex; // Original index
                     const isLatest = index === 0;
                     const lat = parseFloat(loc.latitude);
                     const lon = parseFloat(loc.longitude);
@@ -344,11 +348,15 @@
                         className: ''
                     });
 
-                    L.marker([lat, lon], { icon: markerIcon })
+                    // Höherer zIndexOffset für neuere Marker (neueste = höchster z-index)
+                    L.marker([lat, lon], {
+                        icon: markerIcon,
+                        zIndexOffset: reverseIndex  // Oldest = 0, newest = highest
+                    })
                         .addTo(markerLayer)
                         .bindPopup(popupContent);
 
-                    if (!firstLocation) {
+                    if (!firstLocation && isLatest) {
                         firstLocation = [lat, lon];
                     }
                 });
