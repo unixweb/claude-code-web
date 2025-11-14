@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { DEVICES } from "@/lib/devices";
 
@@ -25,6 +25,19 @@ const TIME_FILTERS = [
 export default function Home() {
   const [selectedDevice, setSelectedDevice] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<number>(1); // Default 1 hour
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col">
