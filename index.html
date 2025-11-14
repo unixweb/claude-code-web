@@ -331,11 +331,14 @@
                     }
 
                     // Marker Icon (neuester = größer)
-                    const iconSize = isLatest ? [30, 45] : [20, 33];
-                    const iconAnchor = isLatest ? [15, 45] : [10, 33];
+                    const iconSize = isLatest ? [32, 32] : [16, 16];
+                    const iconAnchor = isLatest ? [16, 16] : [8, 8];
 
                     const markerIcon = L.divIcon({
-                        html: `<div style="background-color: ${color}; width: ${iconSize[0]}px; height: ${iconSize[1]}px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                        html: `<svg width="${iconSize[0]}" height="${iconSize[1]}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2"/>
+                            <path d="M12 8 L12 12 L15 15" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+                        </svg>`,
                         iconSize: iconSize,
                         iconAnchor: iconAnchor,
                         className: ''
