@@ -8,7 +8,7 @@
         ],
         "additionalFields": {}
       },
-      "id": "ddba8065-2681-4767-a8fc-99f3ccdba6ec",
+      "id": "0ff38437-1b45-4a44-80bb-708f48e3a0d2",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
@@ -35,7 +35,7 @@
           ]
         }
       },
-      "id": "3b6cacfd-4fa8-49b5-b7d7-c53e8a38b2b1",
+      "id": "cf11bd9c-c392-45d0-9fcf-b673c7302f98",
       "name": "Hat Location?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -48,7 +48,7 @@
       "parameters": {
         "jsCode": "// Extrahiere Location-Daten für NocoDB\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const location = item.json.message.location;\n  const from = item.json.message.from;\n  const messageDate = item.json.message.date;\n  \n  const timestamp = new Date(messageDate * 1000).toISOString();\n  const displayTime = new Date(messageDate * 1000).toLocaleString('de-DE');\n  \n  results.push({\n    json: {\n      latitude: location.latitude,\n      longitude: location.longitude,\n      timestamp: timestamp,\n      user_id: from.id,\n      first_name: from.first_name || '',\n      last_name: from.last_name || '',\n      username: from.username || '',\n      marker_label: `${from.first_name || ''} ${from.last_name || ''}`.trim(),\n      display_time: displayTime,\n      chat_id: item.json.message.chat.id\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "e6048d6f-f70e-48d2-b9ac-d8e9b666ed06",
+      "id": "648a42c5-99ce-4c7b-8a85-380cd40050d0",
       "name": "Location verarbeiten",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +108,7 @@
           ]
         }
       },
-      "id": "871598c7-0d0d-420d-b570-6cc2fe68225b",
+      "id": "0bd51abc-74cb-4220-aa42-f7801c8c79f1",
       "name": "Speichere in NocoDB",
       "type": "n8n-nodes-base.nocoDb",
       "typeVersion": 2,
@@ -129,10 +129,9 @@
         "operation": "getAll",
         "projectId": "pdxl4cx4dbu9nxi",
         "table": "m8pqj5ixgnnrzkg",
-        "limit": 1,
         "options": {}
       },
-      "id": "e80e8a1d-901e-4870-85a9-9daac4188b4a",
+      "id": "b87051cc-a53b-4c8e-8380-1e8d1d69e75b",
       "name": "Hole letzten Eintrag",
       "type": "n8n-nodes-base.nocoDb",
       "typeVersion": 2,
@@ -156,7 +155,7 @@
         "returnAll": true,
         "options": {}
       },
-      "id": "c98b7cd0-bf3e-41a0-811e-04b22c5e8662",
+      "id": "78a7fd6d-640d-4659-b0c7-11fefc827eaf",
       "name": "Zähle Einträge",
       "type": "n8n-nodes-base.nocoDb",
       "typeVersion": 2,
@@ -175,12 +174,12 @@
       "parameters": {
         "jsCode": "// Kombiniere Daten für Telegram-Bestätigung\nconst lastEntry = $('Hole letzten Eintrag').all();\nconst allEntries = $('Zähle Einträge').all();\nconst originalData = $('Location verarbeiten').first().json;\n\nreturn [{\n  json: {\n    latitude: originalData.latitude,\n    longitude: originalData.longitude,\n    display_time: originalData.display_time,\n    chat_id: originalData.chat_id,\n    total: allEntries.length\n  }\n}];"
       },
-      "id": "894ec56f-e490-4639-8c50-f5590b036cc9",
+      "id": "25429eb3-aa61-428d-9ec2-2f365e9669eb",
       "name": "Bereite Bestätigung vor",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1344,
+        1328,
         128
       ]
     },
@@ -190,7 +189,7 @@
         "text": "=✅ Standort gespeichert!\n\n📍 Koordinaten:\nLat: {{ $json.latitude }}\nLon: {{ $json.longitude }}\n\n🕐 Zeit: {{ $json.display_time }}\n\n🗺️ Karte:\nhttps://web.unixweb.home64.de/tracker/index.html\n\n📊 Gespeicherte Punkte: {{ $json.total }}",
         "additionalFields": {}
       },
-      "id": "e68d8cb8-7978-44eb-875c-5dd04ae1a4f8",
+      "id": "8a3be707-feb5-42c2-a551-5ebc4aa123f9",
       "name": "Telegram Bestätigung",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.1,
@@ -214,7 +213,7 @@
           "allowedOrigins": "*"
         }
       },
-      "id": "b3b98836-97c0-43b4-84ca-4a47eb4bc670",
+      "id": "e8d5b4b8-0495-4599-be54-a21ff208f26b",
       "name": "Webhook - Location API",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
@@ -231,16 +230,9 @@
         "projectId": "pdxl4cx4dbu9nxi",
         "table": "m8pqj5ixgnnrzkg",
         "returnAll": true,
-        "options": {
-          "sort": [
-            {
-              "field": "timestamp",
-              "direction": "desc"
-            }
-          ]
-        }
+        "options": {}
       },
-      "id": "efc8af5b-b101-4a1c-b43e-f53adc22736e",
+      "id": "61d1ee53-9536-419b-ab5a-aff4281b08ac",
       "name": "Lade Daten aus NocoDB",
       "type": "n8n-nodes-base.nocoDb",
       "typeVersion": 2,
@@ -257,9 +249,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Baue API Response aus NocoDB-Daten\nconst locations = $input.all().map(item => item.json);\n\nconst current = locations.length > 0 ? locations[0] : null;\n\nreturn [{\n  json: {\n    success: true,\n    current: current,\n    history: locations,\n    total_points: locations.length,\n    last_updated: current ? current.timestamp : null\n  }\n}];"
+        "jsCode": "// Baue API Response aus NocoDB-Daten\nconst locations = $input.all().map(item => item.json);\n\n// Sortiere nach timestamp (neueste zuerst)\nlocations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));\n\nconst current = locations.length > 0 ? locations[0] : null;\n\nreturn [{\n  json: {\n    success: true,\n    current: current,\n    history: locations,\n    total_points: locations.length,\n    last_updated: current ? current.timestamp : null\n  }\n}];"
       },
-      "id": "9e270f26-f22e-4b12-a401-326786f8a3ec",
+      "id": "6e2d1c8b-1c23-44d4-9faf-2ab85a200e18",
       "name": "Format API Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -287,7 +279,7 @@
           }
         }
       },
-      "id": "6f2b9459-9a70-4fd0-aeca-fd93e2686371",
+      "id": "81534ffa-a120-437c-a2cd-5b68991d95fe",
       "name": "JSON Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -308,7 +300,7 @@
         0
       ],
       "typeVersion": 1,
-      "id": "5f977203-f2d1-4769-b586-61626021a492",
+      "id": "4fe64055-f0c3-4377-a4f5-be668e6856ef",
       "name": "Sticky Note"
     },
     {
@@ -319,7 +311,7 @@
         1168,
         128
       ],
-      "id": "ddefcd86-d670-408f-86c5-bbcf4468f446",
+      "id": "c7c605e5-9033-4542-a5b5-7847080de63b",
       "name": "Merge"
     }
   ],
@@ -454,17 +446,12 @@
   },
   "active": true,
   "settings": {
-    "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "executionTimeout": -1,
-    "availableInMCP": false,
-    "errorWorkflow": "PhwIkaqyXRasTXDH"
+    "executionOrder": "v1"
   },
-  "versionId": "01b8afe3-8aa5-4004-9384-2dc32654961a",
+  "versionId": "2fe5806f-3c70-4680-b7eb-66f72a413ea9",
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "12d864c68e4fb5dfd100dc0c683b95f43cd55af7e9efa82e25407fac5a3824a5"
   },
-  "id": "gs6GxPzIPKTjpK2Z",
+  "id": "8fjExqEGYvh8XWVu",
   "tags": []
 }
