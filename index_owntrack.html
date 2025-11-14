@@ -117,10 +117,21 @@
 
                 if (data.current) {
                     const loc = data.current;
-                    console.log('Current location:', loc);
+                    console.log('Current location object:', loc);
+                    console.log('latitude field:', loc.latitude, 'type:', typeof loc.latitude);
+                    console.log('longitude field:', loc.longitude, 'type:', typeof loc.longitude);
+
+                    const lat = parseFloat(loc.latitude);
+                    const lon = parseFloat(loc.longitude);
+
+                    console.log('Parsed lat:', lat, 'lon:', lon);
+
+                    if (isNaN(lat) || isNaN(lon)) {
+                        throw new Error(`Invalid coordinates: lat=${loc.latitude} (${typeof loc.latitude}), lon=${loc.longitude} (${typeof loc.longitude})`);
+                    }
 
                     // Popup-Inhalt aufbauen
-                    let popupContent = `${loc.marker_label}<br>${loc.display_time}`;
+                    let popupContent = `${loc.marker_label || 'Unknown'}<br>${loc.display_time || ''}`;
 
                     // Batterie hinzufügen, falls vorhanden
                     if (loc.battery !== undefined && loc.battery !== null) {
@@ -131,13 +142,6 @@
                     if (loc.speed !== undefined && loc.speed !== null) {
                         const speedKmh = (loc.speed * 3.6).toFixed(1); // m/s zu km/h
                         popupContent += `<br>🚗 Speed: ${speedKmh} km/h`;
-                    }
-
-                    const lat = parseFloat(loc.latitude);
-                    const lon = parseFloat(loc.longitude);
-
-                    if (isNaN(lat) || isNaN(lon)) {
-                        throw new Error(`Invalid coordinates: lat=${loc.latitude}, lon=${loc.longitude}`);
                     }
 
                     const marker = L.marker([lat, lon])
@@ -151,12 +155,25 @@
 
                     // Historie als Linie
                     if (data.history && data.history.length > 1) {
-                        const coords = data.history.map(h => [parseFloat(h.latitude), parseFloat(h.longitude)]);
-                        const polyline = L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
-                        polylines.push(polyline);
+                        const coords = data.history
+                            .map(h => {
+                                const hlat = parseFloat(h.latitude);
+                                const hlon = parseFloat(h.longitude);
+                                if (!isNaN(hlat) && !isNaN(hlon)) {
+                                    return [hlat, hlon];
+                                }
+                                return null;
+                            })
+                            .filter(c => c !== null);
+
+                        if (coords.length > 1) {
+                            const polyline = L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
+                            polylines.push(polyline);
+                        }
                     }
                 } else {
                     console.log('No current location in response');
+                    statusDiv.innerHTML += '<br>Keine aktuelle Position';
                 }
             } catch (error) {
                 console.error('Load error:', error);
