@@ -263,8 +263,8 @@
         function applyFilters() {
             if (!allData || !allData.history) return;
 
-            // Nur MQTT-Daten (user_id = 0)
-            let filteredData = allData.history.filter(loc => loc.user_id === 0);
+            // Nur MQTT-Daten (user_id = 0 oder "0")
+            let filteredData = allData.history.filter(loc => loc.user_id == 0);
 
             // Apply filters in sequence
             filteredData = filterByDevice(filteredData);
