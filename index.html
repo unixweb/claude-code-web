@@ -377,7 +377,9 @@
 
         async function loadLocations() {
             try {
-                const response = await fetch(API_URL);
+                // Cache-Busting: füge Timestamp hinzu
+                const cacheBustedUrl = `${API_URL}?_t=${Date.now()}`;
+                const response = await fetch(cacheBustedUrl);
                 const data = await response.json();
 
                 allData = data;
