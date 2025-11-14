@@ -99,13 +99,28 @@
                 
                 if (data.current) {
                     const loc = data.current;
+
+                    // Popup-Inhalt aufbauen
+                    let popupContent = `${loc.marker_label}<br>${loc.display_time}`;
+
+                    // Batterie hinzufügen, falls vorhanden
+                    if (loc.battery !== undefined && loc.battery !== null) {
+                        popupContent += `<br>🔋 Batterie: ${loc.battery}%`;
+                    }
+
+                    // Geschwindigkeit hinzufügen, falls vorhanden
+                    if (loc.velocity !== undefined && loc.velocity !== null) {
+                        const speedKmh = (loc.velocity * 3.6).toFixed(1); // m/s zu km/h
+                        popupContent += `<br>🚗 Speed: ${speedKmh} km/h`;
+                    }
+
                     L.marker([loc.latitude, loc.longitude])
                         .addTo(map)
-                        .bindPopup(`${loc.marker_label}<br>${loc.display_time}`)
+                        .bindPopup(popupContent)
                         .openPopup();
-                    
+
                     map.setView([loc.latitude, loc.longitude], 15);
-                    
+
                     // Historie als Linie
                     if (data.history && data.history.length > 1) {
                         const coords = data.history.map(h => [h.latitude, h.longitude]);
