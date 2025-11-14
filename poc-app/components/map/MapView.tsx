@@ -1,35 +1,11 @@
 "use client";
 
 import { useEffect, useState, Fragment } from "react";
-import dynamic from "next/dynamic";
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { LayersControl } from "react-leaflet";
 import { Location, LocationResponse } from "@/types/location";
 import { getDevice } from "@/lib/devices";
-
-// Dynamically import Leaflet components (client-side only)
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
-const Popup = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
-  { ssr: false }
-);
-const Polyline = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Polyline),
-  { ssr: false }
-);
-const LayersControl = dynamic(
-  () => import("react-leaflet").then((mod) => mod.LayersControl),
-  { ssr: false }
-);
+import L from "leaflet";
 
 interface MapViewProps {
   selectedDevice: string;
@@ -193,9 +169,6 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
 
 // Helper to create custom icon (similar to original)
 function createCustomIcon(color: string, isLatest: boolean) {
-  if (typeof window === "undefined") return undefined;
-
-  const L = require("leaflet");
   const size = isLatest ? 32 : 16;
 
   const svg = `
