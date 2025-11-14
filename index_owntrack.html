@@ -109,8 +109,8 @@
                     }
 
                     // Geschwindigkeit hinzufügen, falls vorhanden
-                    if (loc.velocity !== undefined && loc.velocity !== null) {
-                        const speedKmh = (loc.velocity * 3.6).toFixed(1); // m/s zu km/h
+                    if (loc.speed !== undefined && loc.speed !== null) {
+                        const speedKmh = (loc.speed * 3.6).toFixed(1); // m/s zu km/h
                         popupContent += `<br>🚗 Speed: ${speedKmh} km/h`;
                     }
 
