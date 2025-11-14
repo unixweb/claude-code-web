@@ -110,10 +110,6 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
 
   return (
     <div className="h-full w-full">
-      <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      />
       <MapContainer
         center={[48.1351, 11.582]}
         zoom={12}
