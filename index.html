@@ -380,7 +380,7 @@
                 allData = data;
 
                 // Nur MQTT-Daten für Device-Filter
-                const mqttData = data.history ? data.history.filter(loc => loc.user_id === 0) : [];
+                const mqttData = data.history ? data.history.filter(loc => loc.user_id == 0) : [];
 
                 // Update device filter dropdown
                 if (mqttData.length > 0) {
