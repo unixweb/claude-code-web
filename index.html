@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Location Test</title>
+    <title>MQTT Location Tracker</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
@@ -99,7 +99,7 @@
 <body>
     <div id="map"></div>
     <div class="info">
-        <h3>📍 Location Tracker</h3>
+        <h3>📍 MQTT Tracker</h3>
         <div id="status">Lade...</div>
 
         <div class="filter-section">
@@ -113,30 +113,20 @@
         </div>
 
         <div class="filter-section">
-            <label class="filter-label">📡 Datenquelle</label>
-            <select id="sourceFilter" onchange="applyFilters()">
-                <option value="all">Alle Quellen</option>
-                <option value="telegram">Nur Telegram</option>
-                <option value="mqtt">Nur MQTT/OwnTracks</option>
-            </select>
-        </div>
-
-        <div class="filter-section">
-            <label class="filter-label">👤 Benutzer/Gerät</label>
-            <select id="userFilter" onchange="applyFilters()">
-                <option value="all">Alle anzeigen</option>
+            <label class="filter-label">📱 Gerät</label>
+            <select id="deviceFilter" onchange="applyFilters()">
+                <option value="all">Alle Geräte</option>
             </select>
         </div>
 
         <div class="filter-section">
             <label class="filter-label">⏱️ Zeitraum</label>
             <select id="timeFilter" onchange="applyFilters()">
-                <option value="all">Alle Zeitpunkte</option>
-                <option value="1h">Letzte Stunde</option>
+                <option value="1h" selected>Letzte Stunde</option>
+                <option value="3h">Letzte 3 Stunden</option>
                 <option value="6h">Letzte 6 Stunden</option>
+                <option value="12h">Letzte 12 Stunden</option>
                 <option value="24h">Letzte 24 Stunden</option>
-                <option value="7d">Letzte 7 Tage</option>
-                <option value="30d">Letzte 30 Tage</option>
             </select>
         </div>
 
@@ -148,6 +138,19 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Device Name Mapping (username -> sprechender Name)
+        const DEVICE_NAMES = {
+            '10': 'Joachim Pixel',
+            '11': 'Huawei Smartphone'
+        };
+
+        // Device Colors (für unterschiedliche Marker/Polylines)
+        const DEVICE_COLORS = {
+            '10': '#e74c3c', // Rot
+            '11': '#3498db', // Blau
+            'default': '#95a5a6' // Grau für unbekannte Geräte
+        };
+
         // Karte initialisieren (München)
         const map = L.map('map').setView([48.1351, 11.5820], 12);
 
@@ -171,7 +174,7 @@
         let currentLayer = mapLayers.standard;
         currentLayer.addTo(map);
 
-        // API URL - anpassen an deine Domain
+        // API URL
         const API_URL = 'https://n8n.unixweb.home64.de/webhook/location';
 
         // State
@@ -181,6 +184,16 @@
         let markerLayer = L.layerGroup().addTo(map);
         let polylineLayer = L.layerGroup().addTo(map);
 
+        // Hilfsfunktion: Gerätename aus username holen
+        function getDeviceName(username) {
+            return DEVICE_NAMES[username] || `Unbekanntes Gerät (${username})`;
+        }
+
+        // Hilfsfunktion: Farbe für Gerät holen
+        function getDeviceColor(username) {
+            return DEVICE_COLORS[username] || DEVICE_COLORS.default;
+        }
+
         // Change map layer
         function changeMapLayer() {
             const selectedLayer = document.getElementById('mapLayerSelect').value;
@@ -189,44 +202,25 @@
             currentLayer.addTo(map);
         }
 
-        // Filter data by source (Telegram/MQTT)
-        function filterBySource(locations) {
-            const sourceFilter = document.getElementById('sourceFilter').value;
-            if (sourceFilter === 'all') return locations;
+        // Filter data by device
+        function filterByDevice(locations) {
+            const deviceFilter = document.getElementById('deviceFilter').value;
+            if (deviceFilter === 'all') return locations;
 
-            return locations.filter(loc => {
-                if (sourceFilter === 'telegram') {
-                    return loc.user_id > 0; // Telegram has real user_id
-                } else if (sourceFilter === 'mqtt') {
-                    return loc.user_id === 0; // MQTT has user_id = 0
-                }
-                return true;
-            });
-        }
-
-        // Filter data by user/device
-        function filterByUser(locations) {
-            const userFilter = document.getElementById('userFilter').value;
-            if (userFilter === 'all') return locations;
-
-            return locations.filter(loc => {
-                const identifier = `${loc.first_name || ''} ${loc.last_name || ''}`.trim() || loc.username || 'Unknown';
-                return identifier === userFilter;
-            });
+            return locations.filter(loc => loc.username === deviceFilter);
         }
 
         // Filter data by time range
         function filterByTime(locations) {
             const timeFilter = document.getElementById('timeFilter').value;
-            if (timeFilter === 'all') return locations;
 
             const now = new Date();
             const ranges = {
                 '1h': 60 * 60 * 1000,
+                '3h': 3 * 60 * 60 * 1000,
                 '6h': 6 * 60 * 60 * 1000,
-                '24h': 24 * 60 * 60 * 1000,
-                '7d': 7 * 24 * 60 * 60 * 1000,
-                '30d': 30 * 24 * 60 * 60 * 1000
+                '12h': 12 * 60 * 60 * 1000,
+                '24h': 24 * 60 * 60 * 1000
             };
 
             const cutoffTime = now - ranges[timeFilter];
@@ -237,30 +231,31 @@
             });
         }
 
-        // Update user filter dropdown with available users
-        function updateUserFilterOptions(locations) {
-            const userFilter = document.getElementById('userFilter');
-            const currentValue = userFilter.value;
+        // Update device filter dropdown with available devices
+        function updateDeviceFilterOptions(locations) {
+            const deviceFilter = document.getElementById('deviceFilter');
+            const currentValue = deviceFilter.value;
 
-            // Get unique users
-            const users = new Set();
+            // Get unique devices (username field)
+            const devices = new Set();
             locations.forEach(loc => {
-                const identifier = `${loc.first_name || ''} ${loc.last_name || ''}`.trim() || loc.username || 'Unknown';
-                users.add(identifier);
+                if (loc.username) {
+                    devices.add(loc.username);
+                }
             });
 
             // Rebuild options
-            userFilter.innerHTML = '<option value="all">Alle anzeigen</option>';
-            Array.from(users).sort().forEach(user => {
+            deviceFilter.innerHTML = '<option value="all">Alle Geräte</option>';
+            Array.from(devices).sort().forEach(username => {
                 const option = document.createElement('option');
-                option.value = user;
-                option.textContent = user;
-                userFilter.appendChild(option);
+                option.value = username;
+                option.textContent = getDeviceName(username);
+                deviceFilter.appendChild(option);
             });
 
             // Restore previous selection if still available
-            if (currentValue !== 'all' && users.has(currentValue)) {
-                userFilter.value = currentValue;
+            if (currentValue !== 'all' && devices.has(currentValue)) {
+                deviceFilter.value = currentValue;
             }
         }
 
@@ -268,11 +263,11 @@
         function applyFilters() {
             if (!allData || !allData.history) return;
 
-            let filteredData = [...allData.history];
+            // Nur MQTT-Daten (user_id = 0)
+            let filteredData = allData.history.filter(loc => loc.user_id === 0);
 
             // Apply filters in sequence
-            filteredData = filterBySource(filteredData);
-            filteredData = filterByUser(filteredData);
+            filteredData = filterByDevice(filteredData);
             filteredData = filterByTime(filteredData);
 
             // Update map
@@ -280,8 +275,9 @@
 
             // Update status
             document.getElementById('status').innerHTML =
-                `Punkte: ${filteredData.length} / ${allData.total_points || 0}<br>` +
-                `Status: ${allData.success ? '✅ Verbunden' : '❌ Fehler'}`;
+                `📊 Punkte: ${filteredData.length}<br>` +
+                `📱 Geräte: ${new Set(filteredData.map(l => l.username)).size}<br>` +
+                `${allData.success ? '✅ Verbunden' : '❌ Fehler'}`;
         }
 
         // Display filtered locations on map
@@ -292,31 +288,87 @@
 
             if (locations.length === 0) return;
 
-            // Add markers
-            locations.forEach((loc, index) => {
-                const isLatest = index === 0;
-                const markerIcon = L.icon({
-                    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${isLatest ? 'red' : 'blue'}.png`,
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34],
-                    shadowSize: [41, 41]
+            // Gruppiere Locations nach Gerät
+            const deviceGroups = {};
+            locations.forEach(loc => {
+                const device = loc.username || 'unknown';
+                if (!deviceGroups[device]) {
+                    deviceGroups[device] = [];
+                }
+                deviceGroups[device].push(loc);
+            });
+
+            // Für jedes Gerät: Marker + Polyline
+            let firstLocation = null;
+
+            Object.keys(deviceGroups).forEach(device => {
+                const deviceLocs = deviceGroups[device];
+                const color = getDeviceColor(device);
+
+                // Sortiere nach Timestamp (neueste zuerst)
+                deviceLocs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                // Add markers
+                deviceLocs.forEach((loc, index) => {
+                    const isLatest = index === 0;
+                    const lat = parseFloat(loc.latitude);
+                    const lon = parseFloat(loc.longitude);
+
+                    if (isNaN(lat) || isNaN(lon)) return;
+
+                    // Popup-Inhalt mit zusätzlichen Infos
+                    let popupContent = `<b>${getDeviceName(device)}</b><br>${loc.display_time || ''}`;
+
+                    // Batterie
+                    if (loc.battery !== undefined && loc.battery !== null) {
+                        popupContent += `<br>🔋 Batterie: ${loc.battery}%`;
+                    }
+
+                    // Geschwindigkeit
+                    if (loc.speed !== undefined && loc.speed !== null) {
+                        const speedKmh = (loc.speed * 3.6).toFixed(1);
+                        popupContent += `<br>🚗 Speed: ${speedKmh} km/h`;
+                    }
+
+                    // Marker Icon (neuester = größer)
+                    const iconSize = isLatest ? [30, 45] : [20, 33];
+                    const iconAnchor = isLatest ? [15, 45] : [10, 33];
+
+                    const markerIcon = L.divIcon({
+                        html: `<div style="background-color: ${color}; width: ${iconSize[0]}px; height: ${iconSize[1]}px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                        iconSize: iconSize,
+                        iconAnchor: iconAnchor,
+                        className: ''
+                    });
+
+                    L.marker([lat, lon], { icon: markerIcon })
+                        .addTo(markerLayer)
+                        .bindPopup(popupContent);
+
+                    if (!firstLocation) {
+                        firstLocation = [lat, lon];
+                    }
                 });
 
-                L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
-                    .addTo(markerLayer)
-                    .bindPopup(`${loc.marker_label}<br>${loc.display_time}`);
+                // Add polyline if multiple points
+                if (deviceLocs.length > 1) {
+                    const coords = deviceLocs
+                        .map(h => {
+                            const lat = parseFloat(h.latitude);
+                            const lon = parseFloat(h.longitude);
+                            return !isNaN(lat) && !isNaN(lon) ? [lat, lon] : null;
+                        })
+                        .filter(c => c !== null);
 
-                if (isLatest) {
-                    map.setView([loc.latitude, loc.longitude], 15);
+                    if (coords.length > 1) {
+                        L.polyline(coords, { color: color, weight: 3, opacity: 0.7 }).addTo(polylineLayer);
+                    }
                 }
             });
 
-            // Add polyline if multiple points
-            if (locations.length > 1) {
-                const coords = locations.map(h => [h.latitude, h.longitude]);
-                L.polyline(coords, { color: 'blue', weight: 3 }).addTo(polylineLayer);
+            // Zentriere auf erste Location
+            if (firstLocation) {
+                map.setView(firstLocation, 13);
             }
         }
 
@@ -327,9 +379,12 @@
 
                 allData = data;
 
-                // Update user filter dropdown
-                if (data.history && data.history.length > 0) {
-                    updateUserFilterOptions(data.history);
+                // Nur MQTT-Daten für Device-Filter
+                const mqttData = data.history ? data.history.filter(loc => loc.user_id === 0) : [];
+
+                // Update device filter dropdown
+                if (mqttData.length > 0) {
+                    updateDeviceFilterOptions(mqttData);
                 }
 
                 // Apply filters and display
