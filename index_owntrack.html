@@ -127,18 +127,21 @@
                         popupContent += `<br>🚗 Speed: ${speedKmh} km/h`;
                     }
 
-                    const marker = L.marker([loc.latitude, loc.longitude])
+                    const lat = parseFloat(loc.latitude);
+                    const lon = parseFloat(loc.longitude);
+
+                    const marker = L.marker([lat, lon])
                         .addTo(map)
                         .bindPopup(popupContent)
                         .openPopup();
 
                     markers.push(marker);
 
-                    map.setView([loc.latitude, loc.longitude], 15);
+                    map.setView([lat, lon], 15);
 
                     // Historie als Linie
                     if (data.history && data.history.length > 1) {
-                        const coords = data.history.map(h => [h.latitude, h.longitude]);
+                        const coords = data.history.map(h => [parseFloat(h.latitude), parseFloat(h.longitude)]);
                         const polyline = L.polyline(coords, {color: 'blue', weight: 3}).addTo(map);
                         polylines.push(polyline);
                     }
