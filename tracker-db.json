@@ -232,10 +232,12 @@
         "table": "m8pqj5ixgnnrzkg",
         "returnAll": true,
         "options": {
-          "sort": {
-            "field": "timestamp",
-            "direction": "desc"
-          }
+          "sort": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
         }
       },
       "id": "efc8af5b-b101-4a1c-b43e-f53adc22736e",
