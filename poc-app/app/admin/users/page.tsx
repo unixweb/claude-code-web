@@ -189,14 +189,6 @@ export default function UsersPage() {
             }}
           >
             <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {user.username}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {user.email || "No email"}
-                </p>
-              </div>
               <span
                 className={`px-2 py-1 text-xs font-medium rounded ${
                   user.role === "ADMIN"
@@ -208,13 +200,21 @@ export default function UsersPage() {
               </span>
             </div>
 
-            <div className="space-y-2 text-sm text-gray-600 mb-4">
-              <p className="flex items-center gap-2">
+            <div className="space-y-2 text-sm mb-4">
+              <p>
+                <span className="font-medium text-gray-700">Username:</span>{" "}
+                <span className="text-gray-900">{user.username}</span>
+              </p>
+              <p>
+                <span className="font-medium text-gray-700">Email:</span>{" "}
+                <span className="text-gray-900">{user.email || "—"}</span>
+              </p>
+              <p className="flex items-center gap-2 text-gray-600">
                 <span className="text-gray-400">●</span>
                 Created: {new Date(user.createdAt).toLocaleDateString()}
               </p>
               {user.lastLoginAt && (
-                <p className="flex items-center gap-2">
+                <p className="flex items-center gap-2 text-gray-600">
                   <span className="text-green-500">●</span>
                   Last login: {new Date(user.lastLoginAt).toLocaleString()}
                 </p>
