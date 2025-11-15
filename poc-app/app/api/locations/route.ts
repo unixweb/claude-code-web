@@ -1,25 +1,54 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { LocationResponse } from "@/types/location";
+import { locationDb } from "@/lib/db";
 
-const N8N_API_URL = "https://n8n.unixweb.home64.de/webhook/location";
-
-export async function GET() {
+/**
+ * GET /api/locations
+ *
+ * Fetches location data from local SQLite cache instead of n8n webhook.
+ * Supports query parameters for filtering:
+ * - username: Filter by device tracker ID
+ * - timeRangeHours: Filter by time range (e.g., 1, 3, 6, 12, 24)
+ * - limit: Maximum number of records (default: 1000)
+ *
+ * Returns the same format as the old n8n webhook for backward compatibility.
+ */
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(N8N_API_URL, {
-      cache: "no-store", // Always fetch fresh data
+    const searchParams = request.nextUrl.searchParams;
+    const username = searchParams.get('username') || undefined;
+    const timeRangeHours = searchParams.get('timeRangeHours')
+      ? parseInt(searchParams.get('timeRangeHours')!, 10)
+      : undefined;
+    const limit = searchParams.get('limit')
+      ? parseInt(searchParams.get('limit')!, 10)
+      : 1000;
+
+    // Fetch locations from SQLite with filters
+    const locations = locationDb.findMany({
+      user_id: 0, // Always filter for MQTT devices
+      username,
+      timeRangeHours,
+      limit,
     });
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch locations from n8n");
-    }
+    // Transform to match n8n webhook response format
+    const response: LocationResponse = {
+      success: true,
+      current: locations.length > 0 ? locations[0] : null,
+      history: locations,
+      total_points: locations.length,
+      last_updated: locations.length > 0 ? locations[0].timestamp : new Date().toISOString(),
+    };
 
-    const data: LocationResponse = await response.json();
-
-    return NextResponse.json(data);
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching locations:", error);
     return NextResponse.json(
-      { error: "Failed to fetch locations" },
+      {
+        error: "Failed to fetch locations",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

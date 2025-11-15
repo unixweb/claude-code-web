@@ -7,7 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:init": "node scripts/init-locations-db.js",
+    "db:cleanup": "node scripts/cleanup-old-locations.js",
+    "db:cleanup:7d": "node scripts/cleanup-old-locations.js 168",
+    "db:cleanup:30d": "node scripts/cleanup-old-locations.js 720"
   },
   "keywords": [],
   "author": "",
