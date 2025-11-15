@@ -190,8 +190,7 @@ export default function UsersPage() {
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <span className="text-xl">=d</span>
+                <h3 className="text-lg font-semibold text-gray-900">
                   {user.username}
                 </h3>
                 <p className="text-sm text-gray-600 mt-1">
@@ -210,13 +209,11 @@ export default function UsersPage() {
             </div>
 
             <div className="space-y-2 text-sm text-gray-600 mb-4">
-              <p className="flex items-center gap-2">
-                <span>=R</span>
+              <p>
                 Created: {new Date(user.createdAt).toLocaleDateString()}
               </p>
               {user.lastLoginAt && (
-                <p className="flex items-center gap-2">
-                  <span>=</span>
+                <p>
                   Last login: {new Date(user.lastLoginAt).toLocaleString()}
                 </p>
               )}
