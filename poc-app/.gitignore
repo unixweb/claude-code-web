@@ -39,6 +39,7 @@ next-env.d.ts
 
 # Database
 /data/*.db
+/data/*.sqlite
 /data/*.db-*
 !/data/.gitkeep
-!/data/dev.db
+!/data/database.sqlite
