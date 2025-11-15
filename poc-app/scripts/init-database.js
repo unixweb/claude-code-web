@@ -32,12 +32,12 @@ db.exec(`
     username TEXT UNIQUE NOT NULL,
     email TEXT,
     passwordHash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
+    role TEXT NOT NULL DEFAULT 'VIEWER',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now')),
     lastLoginAt TEXT,
 
-    CHECK (role IN ('user', 'admin'))
+    CHECK (role IN ('ADMIN', 'VIEWER'))
   );
 `);
 console.log('✓ Created User table');
@@ -78,7 +78,7 @@ if (!existingAdmin) {
   db.prepare(`
     INSERT INTO User (id, username, email, passwordHash, role)
     VALUES (?, ?, ?, ?, ?)
-  `).run('admin-001', 'admin', 'admin@example.com', passwordHash, 'admin');
+  `).run('admin-001', 'admin', 'admin@example.com', passwordHash, 'ADMIN');
   console.log('✓ Created default admin user (username: admin, password: admin123)');
 } else {
   console.log('✓ Admin user already exists');
