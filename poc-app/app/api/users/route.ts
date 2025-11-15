@@ -13,8 +13,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log('Session user:', JSON.stringify(session.user, null, 2));
+
     // Only admins can view users
     if ((session.user as any).role !== 'ADMIN') {
+      console.log('Role check failed. Role:', (session.user as any).role);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
