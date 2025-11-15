@@ -209,11 +209,13 @@ export default function UsersPage() {
             </div>
 
             <div className="space-y-2 text-sm text-gray-600 mb-4">
-              <p>
+              <p className="flex items-center gap-2">
+                <span className="text-gray-400">●</span>
                 Created: {new Date(user.createdAt).toLocaleDateString()}
               </p>
               {user.lastLoginAt && (
-                <p>
+                <p className="flex items-center gap-2">
+                  <span className="text-green-500">●</span>
                   Last login: {new Date(user.lastLoginAt).toLocaleString()}
                 </p>
               )}
