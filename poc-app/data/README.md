@@ -7,12 +7,21 @@ This directory contains SQLite database files for the application.
 After cloning the repository, initialize the databases:
 
 ```bash
-# Initialize locations database (tracking cache)
+# Initialize BOTH databases (recommended)
 npm run db:init
 
-# database.sqlite is created automatically on first user registration
-# Or copy from backup/deployment
+# Or initialize them separately:
+npm run db:init:app        # Creates database.sqlite (User + Device tables)
+npm run db:init:locations  # Creates locations.sqlite (Location cache)
 ```
+
+**Default admin credentials:**
+- Username: `admin`
+- Password: `admin123`
+
+**Default devices:**
+- Device 10: "Joachim Pixel" (red #e74c3c)
+- Device 11: "Huawei Smartphone" (blue #3498db)
 
 ## Database Files
 
