@@ -44,7 +44,8 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch("/api/locations");
+        // Fetch directly from n8n (client-side) instead of Next.js API route
+        const response = await fetch("https://n8n.unixweb.home64.de/webhook/location");
         if (!response.ok) throw new Error("Failed to fetch locations");
 
         const data: LocationResponse = await response.json();

@@ -11,7 +11,8 @@ export default function DevicesPage() {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch("/api/locations");
+        // Fetch directly from n8n (client-side)
+        const response = await fetch("https://n8n.unixweb.home64.de/webhook/location");
         const data: LocationResponse = await response.json();
         setLocations(data.history.filter((loc) => loc.user_id == 0)); // Loose equality (handles "0" or 0)
       } catch (err) {
