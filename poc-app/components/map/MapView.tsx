@@ -153,7 +153,10 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
                 >
                   <Popup>
                     <div className="text-sm space-y-1">
-                      <p className="font-bold text-base">{device.name}</p>
+                      <p className="font-bold text-base flex items-center gap-2">
+                        <span className="text-lg">📱</span>
+                        {device.name}
+                      </p>
                       <p className="flex items-center gap-1">
                         <span>🕒</span> {loc.display_time}
                       </p>
