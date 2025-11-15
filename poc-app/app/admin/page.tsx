@@ -20,7 +20,7 @@ export default function AdminDashboard() {
 
         const uniqueDevices = new Set(
           data.history
-            .filter((loc) => loc.user_id === 0)
+            .filter((loc) => loc.user_id == 0) // Loose equality (handles "0" or 0)
             .map((loc) => loc.username)
         );
 

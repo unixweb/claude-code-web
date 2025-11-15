@@ -13,7 +13,7 @@ export default function DevicesPage() {
       try {
         const response = await fetch("/api/locations");
         const data: LocationResponse = await response.json();
-        setLocations(data.history.filter((loc) => loc.user_id === 0));
+        setLocations(data.history.filter((loc) => loc.user_id == 0)); // Loose equality (handles "0" or 0)
       } catch (err) {
         console.error("Failed to fetch locations", err);
       } finally {

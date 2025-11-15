@@ -66,8 +66,8 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
 
   // Filter locations
   const filteredLocations = locations.filter((loc) => {
-    // Filter MQTT-only devices (user_id === 0)
-    if (loc.user_id !== 0) return false;
+    // Filter MQTT-only devices (user_id == 0, can be string or number)
+    if (loc.user_id != 0) return false;
 
     // Filter by selected device
     if (selectedDevice !== "all" && loc.username !== selectedDevice) {
@@ -154,8 +154,8 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
               {/* Polyline for path */}
               <Polyline
                 positions={sortedLocs.map((loc) => [
-                  loc.latitude,
-                  loc.longitude,
+                  Number(loc.latitude),
+                  Number(loc.longitude),
                 ])}
                 color={device.color}
                 weight={2}
@@ -166,7 +166,7 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
               {sortedLocs.map((loc, idx) => (
                 <Marker
                   key={`${deviceId}-${idx}`}
-                  position={[loc.latitude, loc.longitude]}
+                  position={[Number(loc.latitude), Number(loc.longitude)]}
                   icon={createCustomIcon(
                     device.color,
                     idx === sortedLocs.length - 1
