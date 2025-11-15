@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Location, LocationResponse } from "@/types/location";
 import { getDevice } from "@/lib/devices";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import {
   MapContainer,
   TileLayer,
