@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { DEVICES, getDevice } from "@/lib/devices";
 
-// GET /api/devices/[id] - Get single device
+// GET /api/devices/[id] - Get single device (using hardcoded config)
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -14,39 +14,22 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const device = await prisma.device.findUnique({
-      where: { id: params.id },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-        locations: {
-          take: 100,
-          orderBy: {
-            timestamp: "desc",
-          },
-        },
-        _count: {
-          select: {
-            locations: true,
-          },
-        },
-      },
-    });
+    const device = getDevice(params.id);
 
-    if (!device) {
+    if (!DEVICES[params.id]) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    // Check ownership
-    if (session.user.role !== "ADMIN" && device.ownerId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    return NextResponse.json({ device });
+    return NextResponse.json({
+      device: {
+        id: device.id,
+        name: device.name,
+        color: device.color,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    });
   } catch (error) {
     console.error("Error fetching device:", error);
     return NextResponse.json(
@@ -56,100 +39,18 @@ export async function GET(
   }
 }
 
-// PATCH /api/devices/[id] - Update device
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const session = await auth();
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check ownership
-    const device = await prisma.device.findUnique({
-      where: { id: params.id },
-    });
-
-    if (!device) {
-      return NextResponse.json({ error: "Device not found" }, { status: 404 });
-    }
-
-    if (session.user.role !== "ADMIN" && device.ownerId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const body = await request.json();
-    const { name, color, description, icon, isActive } = body;
-
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (color !== undefined) updateData.color = color;
-    if (description !== undefined) updateData.description = description;
-    if (icon !== undefined) updateData.icon = icon;
-    if (isActive !== undefined) updateData.isActive = isActive;
-
-    const updatedDevice = await prisma.device.update({
-      where: { id: params.id },
-      data: updateData,
-      include: {
-        owner: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-      },
-    });
-
-    return NextResponse.json({ device: updatedDevice });
-  } catch (error) {
-    console.error("Error updating device:", error);
-    return NextResponse.json(
-      { error: "Failed to update device" },
-      { status: 500 }
-    );
-  }
+// PATCH /api/devices/[id] - Not implemented (requires database)
+export async function PATCH() {
+  return NextResponse.json(
+    { error: "Device updates require database setup. Please update lib/devices.ts manually." },
+    { status: 501 }
+  );
 }
 
-// DELETE /api/devices/[id] - Delete device
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const session = await auth();
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check ownership
-    const device = await prisma.device.findUnique({
-      where: { id: params.id },
-    });
-
-    if (!device) {
-      return NextResponse.json({ error: "Device not found" }, { status: 404 });
-    }
-
-    if (session.user.role !== "ADMIN" && device.ownerId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    // Delete device (cascade will delete related locations)
-    await prisma.device.delete({
-      where: { id: params.id },
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting device:", error);
-    return NextResponse.json(
-      { error: "Failed to delete device" },
-      { status: 500 }
-    );
-  }
+// DELETE /api/devices/[id] - Not implemented (requires database)
+export async function DELETE() {
+  return NextResponse.json(
+    { error: "Device deletion requires database setup. Please update lib/devices.ts manually." },
+    { status: 501 }
+  );
 }

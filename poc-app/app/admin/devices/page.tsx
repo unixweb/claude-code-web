@@ -224,33 +224,47 @@ export default function DevicesPage() {
 
               {device.latestLocation && (
                 <div className="border-t border-gray-200 pt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Last Seen:</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 flex items-center gap-2">
+                      <span className="text-lg">🕒</span>
+                      Last Seen:
+                    </span>
                     <span className="font-medium text-gray-900">
                       {new Date(device.latestLocation.timestamp).toLocaleString()}
                     </span>
                   </div>
 
                   {device.latestLocation.battery !== undefined && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Battery:</span>
-                      <span className="font-medium text-gray-900">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 flex items-center gap-2">
+                        <span className="text-lg">🔋</span>
+                        Battery:
+                      </span>
+                      <span className={`font-medium ${
+                        device.latestLocation.battery > 20 ? 'text-green-600' : 'text-red-600'
+                      }`}>
                         {device.latestLocation.battery}%
                       </span>
                     </div>
                   )}
 
                   {device.latestLocation.speed !== undefined && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Speed:</span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 flex items-center gap-2">
+                        <span className="text-lg">🚗</span>
+                        Speed:
+                      </span>
                       <span className="font-medium text-gray-900">
                         {(Number(device.latestLocation.speed) * 3.6).toFixed(1)} km/h
                       </span>
                     </div>
                   )}
 
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Location:</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 flex items-center gap-2">
+                      <span className="text-lg">📍</span>
+                      Location:
+                    </span>
                     <span className="font-medium text-gray-900">
                       {Number(device.latestLocation.latitude).toFixed(5)},{" "}
                       {Number(device.latestLocation.longitude).toFixed(5)}
