@@ -251,7 +251,7 @@ export default function DevicesPage() {
                   {device.latestLocation.speed !== undefined && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600 flex items-center gap-2">
-                        <span className="text-lg">⚡</span>
+                        <span className="text-lg">🚗</span>
                         Speed:
                       </span>
                       <span className="font-medium text-gray-900">
