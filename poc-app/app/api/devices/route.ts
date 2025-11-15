@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { DEVICES } from "@/lib/devices";
+import type { LocationResponse } from "@/types/location";
 
-// GET /api/devices - List all devices
+const N8N_API_URL = "https://n8n.unixweb.home64.de/webhook/location";
+
+// GET /api/devices - List all devices (using hardcoded config)
 export async function GET() {
   try {
     const session = await auth();
@@ -11,45 +14,37 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Filter by owner if not admin
-    const where = session.user.role === "ADMIN"
-      ? {}
-      : { ownerId: session.user.id };
+    // Fetch location data from n8n to get latest locations
+    let locationData: LocationResponse | null = null;
+    try {
+      const response = await fetch(N8N_API_URL, { cache: "no-store" });
+      if (response.ok) {
+        locationData = await response.json();
+      }
+    } catch (error) {
+      console.error("Failed to fetch locations:", error);
+    }
 
-    const devices = await prisma.device.findMany({
-      where,
-      include: {
-        owner: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
+    // Convert hardcoded DEVICES to API format with latest location
+    const devicesWithLocation = Object.values(DEVICES).map((device) => {
+      // Find latest location for this device
+      const latestLocation = locationData?.history
+        ?.filter((loc) => loc.username === device.id)
+        ?.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+      return {
+        id: device.id,
+        name: device.name,
+        color: device.color,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        latestLocation: latestLocation || null,
         _count: {
-          select: {
-            locations: true,
-          },
+          locations: locationData?.history?.filter((loc) => loc.username === device.id).length || 0,
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      };
     });
-
-    // Get latest location for each device
-    const devicesWithLocation = await Promise.all(
-      devices.map(async (device) => {
-        const latestLocation = await prisma.location.findFirst({
-          where: { deviceId: device.id },
-          orderBy: { timestamp: "desc" },
-        });
-
-        return {
-          ...device,
-          latestLocation,
-        };
-      })
-    );
 
     return NextResponse.json({ devices: devicesWithLocation });
   } catch (error) {
@@ -61,65 +56,10 @@ export async function GET() {
   }
 }
 
-// POST /api/devices - Create new device
-export async function POST(request: Request) {
-  try {
-    const session = await auth();
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { id, name, color, description, icon } = body;
-
-    // Validation
-    if (!id || !name) {
-      return NextResponse.json(
-        { error: "Device ID and name are required" },
-        { status: 400 }
-      );
-    }
-
-    // Check if device ID already exists
-    const existing = await prisma.device.findUnique({
-      where: { id },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "Device ID already exists" },
-        { status: 400 }
-      );
-    }
-
-    // Create device
-    const device = await prisma.device.create({
-      data: {
-        id,
-        name,
-        color: color || "#95a5a6",
-        description,
-        icon,
-        ownerId: session.user.role === "ADMIN" ? session.user.id : session.user.id,
-        isActive: true,
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-      },
-    });
-
-    return NextResponse.json({ device }, { status: 201 });
-  } catch (error) {
-    console.error("Error creating device:", error);
-    return NextResponse.json(
-      { error: "Failed to create device" },
-      { status: 500 }
-    );
-  }
+// POST /api/devices - Not implemented (requires database)
+export async function POST() {
+  return NextResponse.json(
+    { error: "Device creation requires database setup. Please update lib/devices.ts manually." },
+    { status: 501 }
+  );
 }
