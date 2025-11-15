@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { DEVICES } from "@/lib/devices";
+import { deviceDb } from "@/lib/db";
 import type { LocationResponse } from "@/types/location";
 
 const N8N_API_URL = "https://n8n.unixweb.home64.de/webhook/location";
 
-// GET /api/devices - List all devices (using hardcoded config)
+// GET /api/devices - List all devices (from database)
 export async function GET() {
   try {
     const session = await auth();
@@ -13,6 +13,9 @@ export async function GET() {
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Get devices from database
+    const devices = deviceDb.findAll();
 
     // Fetch location data from n8n to get latest locations
     let locationData: LocationResponse | null = null;
@@ -25,8 +28,8 @@ export async function GET() {
       console.error("Failed to fetch locations:", error);
     }
 
-    // Convert hardcoded DEVICES to API format with latest location
-    const devicesWithLocation = Object.values(DEVICES).map((device) => {
+    // Merge devices with latest location data
+    const devicesWithLocation = devices.map((device) => {
       // Find latest location for this device
       const latestLocation = locationData?.history
         ?.filter((loc) => loc.username === device.id)
@@ -36,9 +39,11 @@ export async function GET() {
         id: device.id,
         name: device.name,
         color: device.color,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        isActive: device.isActive === 1,
+        createdAt: device.createdAt,
+        updatedAt: device.updatedAt,
+        description: device.description,
+        icon: device.icon,
         latestLocation: latestLocation || null,
         _count: {
           locations: locationData?.history?.filter((loc) => loc.username === device.id).length || 0,
@@ -56,10 +61,51 @@ export async function GET() {
   }
 }
 
-// POST /api/devices - Not implemented (requires database)
-export async function POST() {
-  return NextResponse.json(
-    { error: "Device creation requires database setup. Please update lib/devices.ts manually." },
-    { status: 501 }
-  );
+// POST /api/devices - Create new device
+export async function POST(request: Request) {
+  try {
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, name, color, description, icon } = body;
+
+    // Validation
+    if (!id || !name || !color) {
+      return NextResponse.json(
+        { error: "Missing required fields: id, name, color" },
+        { status: 400 }
+      );
+    }
+
+    // Check if device with this ID already exists
+    const existing = deviceDb.findById(id);
+    if (existing) {
+      return NextResponse.json(
+        { error: "Device with this ID already exists" },
+        { status: 409 }
+      );
+    }
+
+    // Create device
+    const device = deviceDb.create({
+      id,
+      name,
+      color,
+      ownerId: (session.user as any).id,
+      description,
+      icon,
+    });
+
+    return NextResponse.json({ device }, { status: 201 });
+  } catch (error) {
+    console.error("Error creating device:", error);
+    return NextResponse.json(
+      { error: "Failed to create device" },
+      { status: 500 }
+    );
+  }
 }

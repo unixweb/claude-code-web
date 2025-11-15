@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { DEVICES, getDevice } from "@/lib/devices";
+import { deviceDb } from "@/lib/db";
 
-// GET /api/devices/[id] - Get single device (using hardcoded config)
+// GET /api/devices/[id] - Get single device
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -14,9 +14,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const device = getDevice(params.id);
+    const device = deviceDb.findById(params.id);
 
-    if (!DEVICES[params.id]) {
+    if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
@@ -25,9 +25,11 @@ export async function GET(
         id: device.id,
         name: device.name,
         color: device.color,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        isActive: device.isActive === 1,
+        createdAt: device.createdAt,
+        updatedAt: device.updatedAt,
+        description: device.description,
+        icon: device.icon,
       }
     });
   } catch (error) {
@@ -39,18 +41,76 @@ export async function GET(
   }
 }
 
-// PATCH /api/devices/[id] - Not implemented (requires database)
-export async function PATCH() {
-  return NextResponse.json(
-    { error: "Device updates require database setup. Please update lib/devices.ts manually." },
-    { status: 501 }
-  );
+// PATCH /api/devices/[id] - Update device
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const device = deviceDb.findById(params.id);
+    if (!device) {
+      return NextResponse.json({ error: "Device not found" }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { name, color, description, icon } = body;
+
+    const updated = deviceDb.update(params.id, {
+      name,
+      color,
+      description,
+      icon,
+    });
+
+    if (!updated) {
+      return NextResponse.json({ error: "Failed to update device" }, { status: 500 });
+    }
+
+    return NextResponse.json({ device: updated });
+  } catch (error) {
+    console.error("Error updating device:", error);
+    return NextResponse.json(
+      { error: "Failed to update device" },
+      { status: 500 }
+    );
+  }
 }
 
-// DELETE /api/devices/[id] - Not implemented (requires database)
-export async function DELETE() {
-  return NextResponse.json(
-    { error: "Device deletion requires database setup. Please update lib/devices.ts manually." },
-    { status: 501 }
-  );
+// DELETE /api/devices/[id] - Soft delete device
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const device = deviceDb.findById(params.id);
+    if (!device) {
+      return NextResponse.json({ error: "Device not found" }, { status: 404 });
+    }
+
+    const success = deviceDb.delete(params.id);
+
+    if (!success) {
+      return NextResponse.json({ error: "Failed to delete device" }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: "Device deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting device:", error);
+    return NextResponse.json(
+      { error: "Failed to delete device" },
+      { status: 500 }
+    );
+  }
 }
