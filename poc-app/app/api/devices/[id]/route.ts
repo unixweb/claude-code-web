@@ -5,7 +5,7 @@ import { deviceDb } from "@/lib/db";
 // GET /api/devices/[id] - Get single device
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -14,7 +14,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const device = deviceDb.findById(params.id);
+    const { id } = await params;
+    const device = deviceDb.findById(id);
 
     if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
@@ -44,7 +45,7 @@ export async function GET(
 // PATCH /api/devices/[id] - Update device
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -53,7 +54,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const device = deviceDb.findById(params.id);
+    const { id } = await params;
+    const device = deviceDb.findById(id);
     if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
@@ -61,7 +63,7 @@ export async function PATCH(
     const body = await request.json();
     const { name, color, description, icon } = body;
 
-    const updated = deviceDb.update(params.id, {
+    const updated = deviceDb.update(id, {
       name,
       color,
       description,
@@ -85,7 +87,7 @@ export async function PATCH(
 // DELETE /api/devices/[id] - Soft delete device
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -94,12 +96,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const device = deviceDb.findById(params.id);
+    const { id } = await params;
+    const device = deviceDb.findById(id);
     if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    const success = deviceDb.delete(params.id);
+    const success = deviceDb.delete(id);
 
     if (!success) {
       return NextResponse.json({ error: "Failed to delete device" }, { status: 500 });
