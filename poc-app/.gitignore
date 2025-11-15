@@ -40,3 +40,5 @@ next-env.d.ts
 # Database
 /data/*.db
 /data/*.db-*
+!/data/.gitkeep
+!/data/dev.db
