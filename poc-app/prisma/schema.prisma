@@ -1,13 +1,13 @@
 // Prisma Schema for Location Tracker
-// Database: PostgreSQL
+// Database: SQLite
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // Users table for authentication
@@ -24,8 +24,6 @@ model User {
   // Relations
   sessions      Session[]
   devices       Device[]  @relation("DeviceOwner")
-  notifications Notification[]
-  geofences     Geofence[]
 
   @@index([username])
   @@index([email])
@@ -63,199 +61,7 @@ model Device {
 
   // Relations
   owner       User?     @relation("DeviceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  locations   Location[]
-  geofences   GeofenceDevice[]
 
   @@index([ownerId])
   @@index([isActive])
-}
-
-// Location history (imported from NocoDB or MQTT)
-model Location {
-  id          Int       @id @default(autoincrement())
-  deviceId    String
-  latitude    Decimal   @db.Decimal(10, 7)
-  longitude   Decimal   @db.Decimal(10, 7)
-  timestamp   DateTime
-
-  // Telemetry data
-  battery     Int?      // Battery percentage (0-100)
-  speed       Decimal?  @db.Decimal(6, 2) // Speed in m/s
-  accuracy    Decimal?  @db.Decimal(6, 2) // Accuracy in meters
-  altitude    Decimal?  @db.Decimal(8, 2) // Altitude in meters
-
-  // Additional metadata
-  source      String?   // Location source (e.g., "fused", "gps")
-  conn        String?   // Connection type (w=WiFi, m=Mobile)
-
-  // Import tracking
-  createdAt   DateTime  @default(now())
-  importedFrom String?  // "nocodb", "mqtt", "manual"
-
-  // Relations
-  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  @@index([deviceId, timestamp(sort: Desc)])
-  @@index([timestamp(sort: Desc)])
-}
-
-// Geofences (virtual boundaries)
-model Geofence {
-  id          String    @id @default(uuid())
-  name        String
-  description String?
-
-  // Circle or polygon
-  type        GeofenceType @default(CIRCLE)
-
-  // For circle
-  centerLat   Decimal?  @db.Decimal(10, 7)
-  centerLon   Decimal?  @db.Decimal(10, 7)
-  radius      Decimal?  @db.Decimal(8, 2) // in meters
-
-  // For polygon (GeoJSON)
-  polygon     Json?
-
-  // Trigger settings
-  triggerEnter Boolean  @default(true)
-  triggerExit  Boolean  @default(true)
-
-  // Ownership
-  ownerId     String
-  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  devices     GeofenceDevice[]
-  events      GeofenceEvent[]
-
-  @@index([ownerId])
-  @@index([isActive])
-}
-
-enum GeofenceType {
-  CIRCLE
-  POLYGON
-}
-
-// Many-to-many: Geofences applied to Devices
-model GeofenceDevice {
-  id          String    @id @default(uuid())
-  geofenceId  String
-  deviceId    String
-
-  geofence    Geofence  @relation(fields: [geofenceId], references: [id], onDelete: Cascade)
-  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  createdAt   DateTime  @default(now())
-
-  @@unique([geofenceId, deviceId])
-  @@index([geofenceId])
-  @@index([deviceId])
-}
-
-// Geofence events (enter/exit triggers)
-model GeofenceEvent {
-  id          String    @id @default(uuid())
-  geofenceId  String
-  deviceId    String
-  eventType   GeofenceEventType
-  timestamp   DateTime  @default(now())
-
-  // Location at time of event
-  latitude    Decimal   @db.Decimal(10, 7)
-  longitude   Decimal   @db.Decimal(10, 7)
-
-  // Notification sent?
-  notified    Boolean   @default(false)
-
-  geofence    Geofence  @relation(fields: [geofenceId], references: [id], onDelete: Cascade)
-
-  @@index([geofenceId, timestamp(sort: Desc)])
-  @@index([deviceId, timestamp(sort: Desc)])
-  @@index([timestamp(sort: Desc)])
-}
-
-enum GeofenceEventType {
-  ENTER
-  EXIT
-}
-
-// Notifications (email/push)
-model Notification {
-  id          String    @id @default(uuid())
-  userId      String
-  type        NotificationType
-  channel     NotificationChannel
-
-  title       String
-  message     String
-  data        Json?     // Additional data (device info, location, etc.)
-
-  sent        Boolean   @default(false)
-  sentAt      DateTime?
-  read        Boolean   @default(false)
-  readAt      DateTime?
-
-  createdAt   DateTime  @default(now())
-
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, sent])
-  @@index([userId, read])
-  @@index([createdAt(sort: Desc)])
-}
-
-enum NotificationType {
-  GEOFENCE_ENTER
-  GEOFENCE_EXIT
-  DEVICE_OFFLINE
-  DEVICE_LOW_BATTERY
-  SYSTEM
-}
-
-enum NotificationChannel {
-  EMAIL
-  PUSH
-  IN_APP
-}
-
-// Export history (CSV/GPX exports)
-model Export {
-  id          String    @id @default(uuid())
-  userId      String
-  format      ExportFormat
-
-  // Filters used
-  deviceId    String?
-  startDate   DateTime?
-  endDate     DateTime?
-
-  // File info
-  fileName    String
-  fileSize    Int?      // in bytes
-  fileUrl     String?   // S3/storage URL
-
-  status      ExportStatus @default(PENDING)
-  createdAt   DateTime  @default(now())
-  completedAt DateTime?
-
-  @@index([userId, createdAt(sort: Desc)])
-}
-
-enum ExportFormat {
-  CSV
-  GPX
-  KML
-  JSON
-}
-
-enum ExportStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
 }

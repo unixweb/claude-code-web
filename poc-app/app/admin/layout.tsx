@@ -14,6 +14,7 @@ export default function AdminLayout({
   const navigation = [
     { name: "Dashboard", href: "/admin" },
     { name: "Devices", href: "/admin/devices" },
+    { name: "Users", href: "/admin/users" },
   ];
 
   return (
@@ -49,7 +50,10 @@ export default function AdminLayout({
               View Map
             </Link>
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={async () => {
+                await signOut({ redirect: false });
+                window.location.href = '/login';
+              }}
               className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
             >
               Logout

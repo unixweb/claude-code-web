@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { LocationResponse } from "@/types/location";
-import { DEVICES } from "@/lib/devices";
+
+interface DeviceInfo {
+  id: string;
+  name: string;
+  color: string;
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -11,6 +16,27 @@ export default function AdminDashboard() {
     lastUpdated: "",
     onlineDevices: 0,
   });
+  const [devices, setDevices] = useState<DeviceInfo[]>([]);
+
+  // Fetch devices from API
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const response = await fetch("/api/devices/public");
+        if (response.ok) {
+          const data = await response.json();
+          setDevices(data.devices);
+        }
+      } catch (err) {
+        console.error("Failed to fetch devices:", err);
+      }
+    };
+
+    fetchDevices();
+    // Refresh devices every 30 seconds
+    const interval = setInterval(fetchDevices, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -26,7 +52,7 @@ export default function AdminDashboard() {
         );
 
         setStats({
-          totalDevices: Object.keys(DEVICES).length,
+          totalDevices: devices.length,
           totalPoints: data.total_points || data.history.length,
           lastUpdated: data.last_updated || new Date().toISOString(),
           onlineDevices: uniqueDevices.size,
@@ -36,10 +62,12 @@ export default function AdminDashboard() {
       }
     };
 
-    fetchStats();
-    const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    if (devices.length > 0) {
+      fetchStats();
+      const interval = setInterval(fetchStats, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [devices]);
 
   const statCards = [
     {
@@ -102,7 +130,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {Object.values(DEVICES).map((device) => (
+              {devices.map((device) => (
                 <tr
                   key={device.id}
                   className="border-b border-gray-100 hover:bg-gray-50"
