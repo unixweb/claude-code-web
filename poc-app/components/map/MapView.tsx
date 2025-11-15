@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Location, LocationResponse } from "@/types/location";
-import { getDevice } from "@/lib/devices";
+import { getDevice, DEFAULT_DEVICE } from "@/lib/devices";
 import L from "leaflet";
 import {
   MapContainer,
@@ -18,11 +18,44 @@ interface MapViewProps {
   timeFilter: number; // in hours, 0 = all
 }
 
+interface DeviceInfo {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
   const [locations, setLocations] = useState<Location[]>([]);
+  const [devices, setDevices] = useState<Record<string, DeviceInfo>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch devices from API
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const response = await fetch("/api/devices/public");
+        if (response.ok) {
+          const data = await response.json();
+          const devicesMap = data.devices.reduce((acc: Record<string, DeviceInfo>, dev: DeviceInfo) => {
+            acc[dev.id] = dev;
+            return acc;
+          }, {});
+          setDevices(devicesMap);
+        }
+      } catch (err) {
+        console.error("Failed to fetch devices:", err);
+        // Fallback to hardcoded devices if API fails
+      }
+    };
+
+    fetchDevices();
+    // Refresh devices every 30 seconds (in case of updates)
+    const interval = setInterval(fetchDevices, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch locations
   useEffect(() => {
     const fetchLocations = async () => {
       try {
@@ -122,7 +155,8 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
         </LayersControl>
 
         {Object.entries(deviceGroups).map(([deviceId, locs]) => {
-          const device = getDevice(deviceId);
+          // Use device from API if available, fallback to hardcoded
+          const device = devices[deviceId] || getDevice(deviceId);
           const sortedLocs = [...locs].sort(
             (a, b) =>
               new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
