@@ -209,13 +209,11 @@ export default function UsersPage() {
                 <span className="font-medium text-gray-700">Email:</span>{" "}
                 <span className="text-gray-900">{user.email || "—"}</span>
               </p>
-              <p className="flex items-center gap-2 text-gray-600">
-                <span className="text-gray-400">●</span>
+              <p className="text-gray-600">
                 Created: {new Date(user.createdAt).toLocaleDateString()}
               </p>
               {user.lastLoginAt && (
-                <p className="flex items-center gap-2 text-gray-600">
-                  <span className="text-green-500">●</span>
+                <p className="text-gray-600">
                   Last login: {new Date(user.lastLoginAt).toLocaleString()}
                 </p>
               )}
