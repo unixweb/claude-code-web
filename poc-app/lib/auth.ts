@@ -22,6 +22,7 @@ const hashPassword = async (password: string) => {
 const ADMIN_PASSWORD_HASH = "$2a$10$7qZ5VqW5qZ5qZ5qZ5qZ5qeKXJXJXJXJXJXJXJXJXJXJXJXJXJXJXJ";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.AUTH_SECRET,
   providers: [
     Credentials({
       credentials: {

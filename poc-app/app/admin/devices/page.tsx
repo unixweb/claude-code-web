@@ -121,8 +121,8 @@ export default function DevicesPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Location:</span>
                   <span className="font-medium text-gray-900">
-                    {lastLocation.latitude.toFixed(5)},{" "}
-                    {lastLocation.longitude.toFixed(5)}
+                    {Number(lastLocation.latitude).toFixed(5)},{" "}
+                    {Number(lastLocation.longitude).toFixed(5)}
                   </span>
                 </div>
               </div>
