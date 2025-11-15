@@ -1,14 +1,14 @@
 export interface Location {
-  latitude: number;
-  longitude: number;
+  latitude: number | string; // NocoDB returns string
+  longitude: number | string; // NocoDB returns string
   timestamp: string;
-  user_id: number;
+  user_id: number | string; // NocoDB returns string "0" for MQTT devices
   first_name: string;
   last_name: string;
   username: string;
   marker_label: string;
   display_time: string;
-  chat_id: number;
+  chat_id: number | string; // Also string in API response
   battery?: number;
   speed?: number;
 }
