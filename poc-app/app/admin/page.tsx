@@ -15,7 +15,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch("/api/locations");
+        // Fetch directly from n8n (client-side)
+        const response = await fetch("https://n8n.unixweb.home64.de/webhook/location");
         const data: LocationResponse = await response.json();
 
         const uniqueDevices = new Set(

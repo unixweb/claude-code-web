@@ -1,35 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import { Location, LocationResponse } from "@/types/location";
 import { getDevice } from "@/lib/devices";
-
-// Dynamically import Leaflet components (client-side only)
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
-const Popup = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
-  { ssr: false }
-);
-const Polyline = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Polyline),
-  { ssr: false }
-);
-const LayersControl = dynamic(
-  () => import("react-leaflet").then((mod) => mod.LayersControl),
-  { ssr: false }
-);
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  LayersControl,
+} from "react-leaflet";
 
 interface MapViewProps {
   selectedDevice: string;
@@ -44,7 +27,8 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch("/api/locations");
+        // Fetch directly from n8n (client-side) instead of Next.js API route
+        const response = await fetch("https://n8n.unixweb.home64.de/webhook/location");
         if (!response.ok) throw new Error("Failed to fetch locations");
 
         const data: LocationResponse = await response.json();
@@ -110,10 +94,6 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
 
   return (
     <div className="h-full w-full">
-      <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      />
       <MapContainer
         center={[48.1351, 11.582]}
         zoom={12}
@@ -196,9 +176,6 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
 
 // Helper to create custom icon (similar to original)
 function createCustomIcon(color: string, isLatest: boolean) {
-  if (typeof window === "undefined") return undefined;
-
-  const L = require("leaflet");
   const size = isLatest ? 32 : 16;
 
   const svg = `
