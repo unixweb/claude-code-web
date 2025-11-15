@@ -152,14 +152,20 @@ export default function MapView({ selectedDevice, timeFilter }: MapViewProps) {
                   )}
                 >
                   <Popup>
-                    <div className="text-sm">
-                      <p className="font-bold">{device.name}</p>
-                      <p>{loc.display_time}</p>
+                    <div className="text-sm space-y-1">
+                      <p className="font-bold text-base">{device.name}</p>
+                      <p className="flex items-center gap-1">
+                        <span>🕒</span> {loc.display_time}
+                      </p>
                       {loc.battery !== undefined && (
-                        <p>Battery: {loc.battery}%</p>
+                        <p className="flex items-center gap-1">
+                          <span>🔋</span> Battery: {loc.battery}%
+                        </p>
                       )}
                       {loc.speed !== undefined && (
-                        <p>Speed: {(loc.speed * 3.6).toFixed(1)} km/h</p>
+                        <p className="flex items-center gap-1">
+                          <span>⚡</span> Speed: {(loc.speed * 3.6).toFixed(1)} km/h
+                        </p>
                       )}
                     </div>
                   </Popup>
