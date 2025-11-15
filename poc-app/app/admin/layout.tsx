@@ -14,6 +14,7 @@ export default function AdminLayout({
   const navigation = [
     { name: "Dashboard", href: "/admin" },
     { name: "Devices", href: "/admin/devices" },
+    { name: "Users", href: "/admin/users" },
   ];
 
   return (
