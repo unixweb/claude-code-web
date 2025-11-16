@@ -499,6 +499,38 @@ export default function AdminDashboard() {
               Current database size: {stats.totalPoints} locations
             </p>
           </div>
+
+          {/* Optimize Section */}
+          <div className="border-t pt-6">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+              Optimize Database
+            </h4>
+            <p className="text-sm text-gray-600 mb-3">
+              Run VACUUM and ANALYZE to reclaim disk space and improve query performance. Recommended after cleanup.
+            </p>
+
+            {/* Optimize Status Message */}
+            {optimizeStatus.message && (
+              <div
+                className={`mb-3 p-3 rounded ${
+                  optimizeStatus.type === 'success'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}
+              >
+                {optimizeStatus.message}
+              </div>
+            )}
+
+            <button
+              onClick={handleOptimize}
+              disabled={optimizeStatus.loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <span>{optimizeStatus.loading ? '⚙️' : '⚡'}</span>
+              {optimizeStatus.loading ? 'Optimizing...' : 'Optimize Now'}
+            </button>
+          </div>
         </div>
       </div>
 
