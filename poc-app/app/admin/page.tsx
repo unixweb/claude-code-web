@@ -465,34 +465,35 @@ export default function AdminDashboard() {
 
             {/* Cleanup Buttons */}
             <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => handleCleanup(168)}
-              disabled={cleanupStatus.loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 7 days'}
-            </button>
-            <button
-              onClick={() => handleCleanup(360)}
-              disabled={cleanupStatus.loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 15 days'}
-            </button>
-            <button
-              onClick={() => handleCleanup(720)}
-              disabled={cleanupStatus.loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 30 days'}
-            </button>
-            <button
-              onClick={() => handleCleanup(2160)}
-              disabled={cleanupStatus.loading}
-              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 90 days'}
-            </button>
+              <button
+                onClick={() => handleCleanup(168)}
+                disabled={cleanupStatus.loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 7 days'}
+              </button>
+              <button
+                onClick={() => handleCleanup(360)}
+                disabled={cleanupStatus.loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 15 days'}
+              </button>
+              <button
+                onClick={() => handleCleanup(720)}
+                disabled={cleanupStatus.loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 30 days'}
+              </button>
+              <button
+                onClick={() => handleCleanup(2160)}
+                disabled={cleanupStatus.loading}
+                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 90 days'}
+              </button>
+            </div>
 
             <p className="text-xs text-gray-500 mt-4">
               Current database size: {stats.totalPoints} locations
