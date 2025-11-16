@@ -35,6 +35,16 @@ export default function AdminDashboard() {
     message: '',
     type: '',
   });
+  const [optimizeStatus, setOptimizeStatus] = useState<{
+    loading: boolean;
+    message: string;
+    type: 'success' | 'error' | '';
+  }>({
+    loading: false,
+    message: '',
+    type: '',
+  });
+  const [dbStats, setDbStats] = useState<any>(null);
 
   // Fetch devices from API
   useEffect(() => {
@@ -86,6 +96,26 @@ export default function AdminDashboard() {
       return () => clearInterval(interval);
     }
   }, [devices]);
+
+  // Fetch detailed database statistics
+  useEffect(() => {
+    const fetchDbStats = async () => {
+      try {
+        const response = await fetch('/api/locations/stats');
+        if (response.ok) {
+          const data = await response.json();
+          setDbStats(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch DB stats:', err);
+      }
+    };
+
+    fetchDbStats();
+    // Refresh DB stats every 30 seconds
+    const interval = setInterval(fetchDbStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Cleanup old locations
   const handleCleanup = async (retentionHours: number) => {
@@ -185,6 +215,52 @@ export default function AdminDashboard() {
     }, 5000);
   };
 
+  // Optimize database
+  const handleOptimize = async () => {
+    if (!confirm('Optimize database? This may take a few seconds.')) {
+      return;
+    }
+
+    setOptimizeStatus({ loading: true, message: '', type: '' });
+
+    try {
+      const response = await fetch('/api/locations/optimize', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setOptimizeStatus({
+          loading: false,
+          message: `✓ Database optimized. Freed ${data.freedMB} MB. (${data.before.sizeMB} → ${data.after.sizeMB} MB)`,
+          type: 'success',
+        });
+        // Refresh stats
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setOptimizeStatus({
+          loading: false,
+          message: `Error: ${data.error}`,
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      setOptimizeStatus({
+        loading: false,
+        message: 'Failed to optimize database',
+        type: 'error',
+      });
+    }
+
+    // Clear message after 5 seconds
+    setTimeout(() => {
+      setOptimizeStatus({ loading: false, message: '', type: '' });
+    }, 5000);
+  };
+
   const statCards = [
     {
       title: "Total Devices",
@@ -222,6 +298,56 @@ export default function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Database Statistics */}
+      {dbStats && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Database Statistics
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-gray-50 p-4 rounded">
+                <p className="text-sm text-gray-600">Database Size</p>
+                <p className="text-2xl font-bold text-gray-900">{dbStats.sizeMB} MB</p>
+                <p className="text-xs text-gray-500 mt-1">WAL Mode: {dbStats.walMode}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded">
+                <p className="text-sm text-gray-600">Time Range</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {dbStats.oldest ? new Date(dbStats.oldest).toLocaleDateString() : 'N/A'}
+                </p>
+                <p className="text-xs text-gray-500">to</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {dbStats.newest ? new Date(dbStats.newest).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded">
+                <p className="text-sm text-gray-600">Average Per Day</p>
+                <p className="text-2xl font-bold text-gray-900">{dbStats.avgPerDay}</p>
+                <p className="text-xs text-gray-500 mt-1">locations (last 7 days)</p>
+              </div>
+            </div>
+
+            {/* Locations per Device */}
+            {dbStats.perDevice && dbStats.perDevice.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Locations per Device</h4>
+                <div className="space-y-2">
+                  {dbStats.perDevice.map((device: any) => (
+                    <div key={device.username} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded">
+                      <span className="text-sm font-medium text-gray-700">Device {device.username}</span>
+                      <span className="text-sm text-gray-900">{device.count.toLocaleString()} locations</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Device List */}
       <div className="bg-white rounded-lg shadow">
