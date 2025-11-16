@@ -1,203 +1,565 @@
-# Location Tracker - Proof of Concept
+# Location Tracker - Next.js Anwendung
 
-A modern Next.js application for tracking MQTT-based location data with authentication and admin panel.
+Eine moderne Location-Tracking Anwendung basierend auf Next.js 14 mit MQTT/OwnTracks Integration, SQLite-Datenbank, Admin-Panel und Authentifizierung.
 
-## Features
+## 📋 Inhaltsverzeichnis
 
-### Public Features
-- 🗺️ **Interactive Map View** - Real-time location tracking with Leaflet.js
-- 🎨 **Multiple Map Layers** - Standard, Satellite, and Dark themes
-- 🔍 **Device Filtering** - Filter by device and time range
-- 🔄 **Auto-refresh** - Updates every 5 seconds
-- 📱 **Responsive Design** - Works on desktop and mobile
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Installation](#-installation)
+- [Datenbank-Setup](#-datenbank-setup)
+- [Verwendung](#-verwendung)
+- [Architektur](#-architektur)
+- [API-Endpunkte](#-api-endpunkte)
+- [Device Management](#-device-management)
+- [Wartung](#-wartung)
+- [Deployment](#-deployment)
 
-### Admin Panel (Protected)
-- 🔐 **Authentication** - Secure login with NextAuth.js
-- 📊 **Dashboard** - Overview of devices and statistics
-- 📱 **Device Management** - View device status, battery, speed
-- 🎨 **Device Cards** - Visual status indicators (online/offline)
+---
 
-## Tech Stack
+## ✨ Features
+
+### Öffentliche Features
+- 🗺️ **Interaktive Karte** - Echtzeit-Standortverfolgung mit Leaflet.js
+- 🎨 **Mehrere Kartenansichten** - Standard, Satellit, Dark Mode
+- 🔍 **Device-Filterung** - Filtern nach Gerät und Zeitraum (1h, 3h, 6h, 12h, 24h)
+- 🔄 **Auto-Refresh** - Automatische Aktualisierung alle 5 Sekunden
+- 📱 **Responsive Design** - Optimiert für Desktop und Mobile
+- 📊 **Polylines** - Bewegungspfade mit farbcodierter Darstellung
+
+### Admin-Panel (Login erforderlich)
+- 🔐 **Authentifizierung** - NextAuth.js v5 mit bcrypt-Hashing
+- 📊 **Dashboard** - Übersicht über Geräte, Statistiken und Datenbankstatus
+- 📱 **Device Management** - Geräte hinzufügen, bearbeiten, löschen
+- 💾 **Datenbank-Wartung**:
+  - 🔄 Manueller Sync von n8n
+  - 🧹 Cleanup alter Daten (7, 15, 30, 90 Tage)
+  - ⚡ Datenbank-Optimierung (VACUUM)
+  - 📈 Detaillierte Statistiken
+- 🟢 **Online/Offline Status** - Echtzeit-Status (< 10 Min = Online)
+- 🔋 **Telemetrie-Daten** - Batterie, Geschwindigkeit, letzte Position
+
+---
+
+## 🛠 Tech Stack
 
 - **Framework:** Next.js 14 (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **Maps:** Leaflet + React-Leaflet
-- **Authentication:** NextAuth.js v5
-- **Data Source:** n8n API (existing MQTT workflow)
+- **Sprache:** TypeScript 5.9
+- **Styling:** Tailwind CSS v4
+- **Karten:** Leaflet 1.9.4 + React-Leaflet 5.0
+- **Authentifizierung:** NextAuth.js v5 (beta)
+- **Datenbank:** SQLite (better-sqlite3)
+- **Passwort-Hashing:** bcryptjs
+- **Datenquelle:** n8n Webhook API + lokale SQLite-Cache
 
-## Getting Started
+### Dual-Database Architektur
+- **database.sqlite** - User, Geräte (kritische Daten)
+- **locations.sqlite** - Location-Tracking (hohe Schreibrate, isoliert)
 
-### Prerequisites
+---
+
+## 📦 Installation
+
+### Voraussetzungen
 - Node.js 18+
-- npm or yarn
+- npm oder yarn
 
-### Installation
+### Schritte
 
-1. Install dependencies:
+1. **Repository klonen**
+```bash
+git clone <repo-url>
+cd claude-code-web/poc-app
+```
+
+2. **Dependencies installieren**
 ```bash
 npm install
 ```
 
-2. Start development server:
+3. **Datenbank initialisieren**
+```bash
+npm run db:init
+```
+
+Dies erstellt:
+- `data/database.sqlite` (User + Devices)
+- `data/locations.sqlite` (Location-Tracking)
+- Standard Admin-User: `admin` / `admin123`
+- Standard Devices (ID 10, 11)
+
+4. **Development Server starten**
 ```bash
 npm run dev
 ```
 
-3. Open browser:
-- Map View: http://localhost:3000
+5. **Im Browser öffnen**
+- Karte: http://localhost:3000
 - Login: http://localhost:3000/login
-- Admin Panel: http://localhost:3000/admin
+- Admin: http://localhost:3000/admin
+- Devices: http://localhost:3000/admin/devices
 
-### Demo Credentials
+---
+
+## 🗄️ Datenbank-Setup
+
+### Initialisierung
+
+**Beide Datenbanken erstellen:**
+```bash
+npm run db:init
+```
+
+**Nur database.sqlite (User/Devices):**
+```bash
+npm run db:init:app
+```
+
+**Nur locations.sqlite (Tracking):**
+```bash
+npm run db:init:locations
+```
+
+### Datenbank zurücksetzen
+
+**Admin-User neu anlegen:**
+```bash
+node scripts/reset-admin.js
+```
+
+**Alte Locations löschen:**
+```bash
+npm run db:cleanup       # Älter als 7 Tage
+npm run db:cleanup:7d    # Älter als 7 Tage
+npm run db:cleanup:30d   # Älter als 30 Tage
+```
+
+**Duplikate entfernen (falls vorhanden):**
+```bash
+node scripts/remove-duplicates.js
+```
+
+### Schema
+
+**database.sqlite:**
+- `User` - Benutzer mit Rollen (ADMIN, VIEWER)
+- `Device` - Geräte-Konfiguration
+
+**locations.sqlite:**
+- `Location` - Standort-Historie mit Telemetrie
+- UNIQUE Index: (timestamp, username, latitude, longitude)
+
+---
+
+## 🚀 Verwendung
+
+### Login
+
+Standard-Zugangsdaten:
+```
+Benutzername: admin
+Passwort: admin123
+```
+
+⚠️ **Wichtig:** Für Production neuen User anlegen und Passwort ändern!
+
+### Geräte hinzufügen
+
+1. Admin-Panel öffnen: `/admin/devices`
+2. "Add Device" klicken
+3. Device ID (muss mit OwnTracks `tid` übereinstimmen)
+4. Name und Farbe festlegen
+5. Speichern
+
+**Wichtig:** Die Device ID muss mit der OwnTracks Tracker-ID übereinstimmen!
+
+### OwnTracks konfigurieren
+
+In der OwnTracks App:
+- **Tracker ID (tid):** z.B. `12`
+- **Topic:** `owntracks/user/12`
+- MQTT Broker wie gewohnt
+
+Die n8n-Workflow holt die Daten, und die App synct automatisch alle 5 Sekunden.
+
+---
+
+## 🏗 Architektur
+
+### Datenfluss
 
 ```
-Username: admin
-Password: admin123
+OwnTracks App (MQTT)
+    ↓
+n8n MQTT Trigger
+    ↓
+NocoDB Speicherung
+    ↓
+n8n Webhook API (/webhook/location)
+    ↓
+Next.js API Route (/api/locations)
+    ↓ (Auto-Sync alle 5 Sek.)
+SQLite Cache (locations.sqlite)
+    ↓
+Frontend (React Components)
 ```
 
-## Project Structure
+### Auto-Sync Mechanismus
+
+Die App verwendet einen **Hybrid-Ansatz**:
+
+1. **Frontend polling** (alle 5 Sek.) → `/api/locations`
+2. **API prüft** ob neue Daten in n8n verfügbar
+3. **Nur neue Locations** werden in SQLite gespeichert
+4. **Duplikate** werden durch UNIQUE Index verhindert
+5. **Antwort** kommt aus lokalem SQLite Cache
+
+**Vorteil:**
+- Schnelle Antwortzeiten (SQLite statt n8n)
+- Längere Zeiträume abrufbar (24h+)
+- Funktioniert auch wenn n8n nicht erreichbar ist
+
+---
+
+## 📡 API-Endpunkte
+
+### Öffentlich
+
+**GET /api/locations**
+- Location-Daten abrufen (mit Auto-Sync)
+- Query-Parameter:
+  - `username` - Device-Filter
+  - `timeRangeHours` - Zeitraum (1, 3, 6, 12, 24)
+  - `limit` - Max. Anzahl (Standard: 1000)
+  - `sync=false` - Nur Cache ohne n8n Sync
+
+**GET /api/devices/public**
+- Öffentliche Device-Liste (nur ID, Name, Color)
+
+### Geschützt (Login erforderlich)
+
+**GET /api/devices**
+- Alle Geräte mit Latest Location und Telemetrie
+
+**POST /api/devices**
+- Neues Gerät erstellen
+- Body: `{ id, name, color, description? }`
+
+**PATCH /api/devices/:id**
+- Gerät aktualisieren
+- Body: `{ name?, color?, description? }`
+
+**DELETE /api/devices/:id**
+- Gerät löschen (soft delete)
+
+**POST /api/locations/sync**
+- Manueller Sync von n8n
+- Gibt Anzahl neu eingefügter Locations zurück
+
+**POST /api/locations/cleanup**
+- Alte Locations löschen
+- Body: `{ retentionHours }`
+
+**POST /api/locations/optimize**
+- VACUUM + ANALYZE ausführen
+- Gibt freigegebenen Speicher zurück
+
+**GET /api/locations/stats**
+- Detaillierte DB-Statistiken
+- Größe, Zeitraum, Locations pro Device
+
+---
+
+## 📱 Device Management
+
+### Device-Karte zeigt:
+
+- 🟢/⚫ **Online/Offline Status**
+  - Online = letzte Location < 10 Minuten
+  - Offline = letzte Location > 10 Minuten
+- 🕒 **Last Seen** - Zeitstempel letzter Location
+- 🔋 **Batterie** - Prozent (Rot bei < 20%)
+- 🚗 **Geschwindigkeit** - km/h (umgerechnet von m/s)
+- 📍 **Koordinaten** - Lat/Lon mit 5 Dezimalen
+
+### Auto-Refresh
+- Devices-Seite aktualisiert sich alle 10 Sekunden
+- Online/Offline Status wird automatisch aktualisiert
+
+---
+
+## 🧹 Wartung
+
+### Datenbank aufräumen
+
+**Via Admin-Panel:**
+- `/admin` → Database Maintenance → Cleanup Buttons
+
+**Via CLI:**
+```bash
+npm run db:cleanup        # 7 Tage
+npm run db:cleanup:30d    # 30 Tage
+```
+
+### Datenbank optimieren
+
+**Via Admin-Panel:**
+- `/admin` → Database Maintenance → Optimize Button
+
+**Via CLI:**
+```bash
+# Manuell
+node scripts/optimize-db.js
+```
+
+**Was macht Optimize:**
+- `VACUUM` - Speicherplatz freigeben
+- `ANALYZE` - Query-Statistiken aktualisieren
+
+### Sync von n8n
+
+**Via Admin-Panel:**
+- `/admin` → Database Maintenance → Sync Now
+
+**Automatisch:**
+- Passiert alle 5 Sekunden beim Abruf der Karte
+
+### Logs prüfen
+
+```bash
+# Development Server Logs
+npm run dev
+
+# Production Logs (PM2)
+pm2 logs poc-app
+```
+
+---
+
+## 🚀 Deployment
+
+### Environment Variables
+
+Erstelle `.env.local`:
+
+```env
+# NextAuth
+AUTH_SECRET=<generiere-mit-openssl-rand-base64-32>
+NEXTAUTH_URL=https://your-domain.com
+
+# Optional: n8n API URL (Standard in Code definiert)
+N8N_API_URL=https://n8n.unixweb.home64.de/webhook/location
+```
+
+**Secret generieren:**
+```bash
+openssl rand -base64 32
+```
+
+### Production Build
+
+```bash
+# Build
+npm run build
+
+# Start
+npm run start
+```
+
+### Mit PM2 (empfohlen)
+
+```bash
+# PM2 installieren
+npm install -g pm2
+
+# App starten
+pm2 start npm --name "poc-app" -- start
+
+# Auto-Start bei Server-Neustart
+pm2 startup
+pm2 save
+```
+
+### Nginx Reverse Proxy
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+---
+
+## 🔒 Sicherheit
+
+### Production Checklist
+
+- [ ] `AUTH_SECRET` mit starkem Wert setzen
+- [ ] `NEXTAUTH_URL` auf Production-Domain setzen
+- [ ] Admin-Passwort ändern (nicht `admin123`)
+- [ ] Ggf. weitere User anlegen mit VIEWER Rolle
+- [ ] HTTPS aktivieren (Let's Encrypt)
+- [ ] Firewall-Regeln prüfen
+- [ ] Regelmäßige Backups einrichten
+
+### User-Rollen
+
+- **ADMIN** - Voller Zugriff auf alle Admin-Funktionen
+- **VIEWER** - Nur lesender Zugriff (geplant, noch nicht implementiert)
+
+---
+
+## 📂 Projektstruktur
 
 ```
 poc-app/
 ├── app/
 │   ├── api/
-│   │   ├── auth/[...nextauth]/    # NextAuth API route
-│   │   └── locations/             # Location data proxy
-│   ├── admin/                     # Protected admin routes
-│   │   ├── devices/               # Device management
-│   │   └── page.tsx               # Dashboard
-│   ├── login/                     # Login page
-│   ├── page.tsx                   # Public map view
-│   └── layout.tsx                 # Root layout
+│   │   ├── auth/[...nextauth]/      # NextAuth API
+│   │   ├── devices/                 # Device CRUD
+│   │   └── locations/               # Location API + Sync/Cleanup/Stats
+│   ├── admin/
+│   │   ├── devices/                 # Device Management
+│   │   └── page.tsx                 # Dashboard
+│   ├── login/                       # Login-Seite
+│   ├── page.tsx                     # Öffentliche Karte
+│   └── layout.tsx                   # Root Layout
 ├── components/
 │   └── map/
-│       └── MapView.tsx            # Leaflet map component
+│       └── MapView.tsx              # Leaflet Map Component
 ├── lib/
-│   ├── auth.ts                    # NextAuth configuration
-│   └── devices.ts                 # Device config
+│   ├── auth.ts                      # NextAuth Config
+│   └── db.ts                        # SQLite Database Layer
+├── scripts/
+│   ├── init-database.js             # Database.sqlite Setup
+│   ├── init-locations-db.js         # Locations.sqlite Setup
+│   ├── reset-admin.js               # Admin User Reset
+│   ├── remove-duplicates.js         # Duplikate bereinigen
+│   └── cleanup-old-locations.js     # Alte Daten löschen
+├── data/
+│   ├── database.sqlite              # User + Devices
+│   └── locations.sqlite             # Location Tracking
 ├── types/
-│   └── location.ts                # TypeScript types
-└── middleware.ts                  # Route protection
+│   └── location.ts                  # TypeScript Interfaces
+└── middleware.ts                    # Route Protection
 ```
 
-## Key Features Explained
+---
 
-### Authentication Flow
-1. User visits `/admin` → Redirected to `/login`
-2. Login with credentials → NextAuth validates
-3. On success → Redirected to `/admin`
-4. Middleware protects all `/admin/*` routes
+## 🐛 Troubleshooting
 
-### Map View
-- Fetches location data from n8n API via `/api/locations`
-- Filters MQTT-only devices (`user_id === 0`)
-- Groups locations by device
-- Displays markers and polylines with device-specific colors
-- Custom circular navigation-style markers
+### "Invalid username or password"
 
-### Admin Panel
-- **Dashboard:** Shows device count, online status, total locations
-- **Devices:** Device cards with latest location, battery, speed
-- Online/Offline status (online = updated within 10 minutes)
-
-## API Endpoints
-
-### Public
-- `GET /api/locations` - Fetch all location data (proxies n8n API)
-
-### Protected (requires auth)
-- `GET /admin` - Admin dashboard
-- `GET /admin/devices` - Device management
-
-## Configuration
-
-### Adding New Devices
-
-Edit `lib/devices.ts`:
-
-```typescript
-export const DEVICES: Record<string, Device> = {
-  '10': { id: '10', name: 'Joachim Pixel', color: '#e74c3c' },
-  '11': { id: '11', name: 'Huawei Smartphone', color: '#3498db' },
-  '12': { id: '12', name: 'New Device', color: '#2ecc71' }, // Add here
-};
+**Lösung:**
+```bash
+node scripts/reset-admin.js
 ```
 
-### Changing API Endpoint
+### Datenbank-Dateien fehlen
 
-Edit `app/api/locations/route.ts`:
-
-```typescript
-const N8N_API_URL = "https://your-n8n-instance.com/webhook/location";
+**Lösung:**
+```bash
+npm run db:init
 ```
 
-### Authentication
+### Duplikate in locations.sqlite
 
-For production, update `lib/auth.ts`:
-- Use database instead of hardcoded users
-- Hash passwords with bcrypt
-- Add proper user management
+**Lösung:**
+```bash
+# Erst Duplikate entfernen
+node scripts/remove-duplicates.js
 
-## Development Notes
+# Dann UNIQUE Index hinzufügen
+node scripts/init-locations-db.js
+```
 
-### POC Limitations
-- ⚠️ **Hardcoded Users** - For production, use database
-- ⚠️ **No Device CRUD** - Add/Edit/Delete buttons are placeholders
-- ⚠️ **No User Management** - Single admin user only
-- ⚠️ **No Geofencing** - Feature planned for full version
-- ⚠️ **No Notifications** - Feature planned for full version
+### Map zeigt keine Daten
 
-### Next Steps for Production
-1. **Database Integration**
-   - Add Postgres/MySQL for user and device storage
-   - Replace hardcoded device config with DB records
+1. n8n Webhook erreichbar? `curl https://n8n.unixweb.home64.de/webhook/location`
+2. Locations in Datenbank? `/admin` → Database Statistics prüfen
+3. Auto-Sync aktiv? Browser Console öffnen
 
-2. **Device CRUD**
-   - Implement Add/Edit/Delete device functionality
-   - API routes for device management
-   - Form validation
+### "ENOENT: no such file or directory, open 'data/database.sqlite'"
 
-3. **User Management**
-   - Multi-user support
-   - Role-based access control (Admin, Viewer)
-   - User registration and password reset
+**Lösung:**
+```bash
+mkdir -p data
+npm run db:init
+```
 
-4. **Advanced Features**
-   - Geofencing with alerts
-   - Email/Push notifications
-   - History playback with timeline
-   - Export to CSV/GPX
-   - Real-time updates (WebSockets)
+---
 
-## Building for Production
+## 📝 NPM Scripts
 
 ```bash
-npm run build
-npm run start
+# Development
+npm run dev              # Dev Server starten
+
+# Production
+npm run build            # Production Build
+npm run start            # Production Server
+
+# Database
+npm run db:init          # Beide DBs initialisieren
+npm run db:init:app      # Nur database.sqlite
+npm run db:init:locations # Nur locations.sqlite
+npm run db:cleanup       # Cleanup 7 Tage
+npm run db:cleanup:7d    # Cleanup 7 Tage
+npm run db:cleanup:30d   # Cleanup 30 Tage
+
+# Linting
+npm run lint             # ESLint ausführen
 ```
 
-## Environment Variables
+---
 
-Create `.env.local`:
+## 🔄 Migration von Prisma zu SQLite
 
-```env
-AUTH_SECRET=your-secret-key-here
-NEXTAUTH_URL=http://localhost:3000
-```
+Diese App wurde von Prisma ORM auf direktes better-sqlite3 migriert:
 
-For production, generate a secure secret:
-```bash
-openssl rand -base64 32
-```
+**Vorteile:**
+- Keine ORM-Komplexität
+- Schnellere Queries
+- Bessere Kontrolle über SQL
+- Dual-Database Architektur möglich
+- WAL Mode für bessere Concurrency
 
-## License
+**Schema bleibt kompatibel** - Daten können aus alter `dev.db` übernommen werden.
 
-POC - Internal use only
+---
 
-## Credits
+## 📄 Lizenz
 
-- Built with Next.js 14
-- Maps by Leaflet.js
-- Authentication by NextAuth.js
-- Integrates with existing n8n MQTT workflow
+Internal Use Only - POC Anwendung
+
+---
+
+## 🙏 Credits
+
+- **Next.js 14** - React Framework
+- **Leaflet.js** - Karten-Bibliothek
+- **NextAuth.js** - Authentifizierung
+- **better-sqlite3** - SQLite für Node.js
+- **Tailwind CSS** - Utility-First CSS
+- **n8n** - Workflow Automation (Backend)
+- **OwnTracks** - Location Tracking Apps
+
+---
+
+## 📞 Support
+
+Bei Fragen oder Problemen:
+1. Logs prüfen (`npm run dev` Output)
+2. Browser Console öffnen (F12)
+3. Datenbank-Status in `/admin` prüfen
+4. Issues im Repository erstellen
