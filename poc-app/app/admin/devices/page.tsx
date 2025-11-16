@@ -45,6 +45,10 @@ export default function DevicesPage() {
 
   useEffect(() => {
     fetchDevices();
+
+    // Auto-refresh every 10 seconds to update online/offline status
+    const interval = setInterval(fetchDevices, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchDevices = async () => {
