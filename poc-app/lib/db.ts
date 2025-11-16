@@ -244,12 +244,12 @@ export interface LocationFilters {
 
 export const locationDb = {
   /**
-   * Insert a new location record
+   * Insert a new location record (ignores duplicates)
    */
-  create: (location: Location): Location => {
+  create: (location: Location): Location | null => {
     const db = getLocationsDb();
     const stmt = db.prepare(`
-      INSERT INTO Location (
+      INSERT OR IGNORE INTO Location (
         latitude, longitude, timestamp, user_id,
         first_name, last_name, username, marker_label,
         display_time, chat_id, battery, speed
@@ -271,29 +271,36 @@ export const locationDb = {
       location.speed || null
     );
 
+    // If changes is 0, it was a duplicate and ignored
+    if (result.changes === 0) {
+      db.close();
+      return null;
+    }
+
     const created = db.prepare('SELECT * FROM Location WHERE id = ?').get(result.lastInsertRowid) as Location;
     db.close();
     return created;
   },
 
   /**
-   * Bulk insert multiple locations (for initial migration or batch imports)
+   * Bulk insert multiple locations (ignores duplicates, returns count of actually inserted)
    */
   createMany: (locations: Location[]): number => {
     if (locations.length === 0) return 0;
 
     const db = getLocationsDb();
     const stmt = db.prepare(`
-      INSERT INTO Location (
+      INSERT OR IGNORE INTO Location (
         latitude, longitude, timestamp, user_id,
         first_name, last_name, username, marker_label,
         display_time, chat_id, battery, speed
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    let insertedCount = 0;
     const insertMany = db.transaction((locations: Location[]) => {
       for (const loc of locations) {
-        stmt.run(
+        const result = stmt.run(
           loc.latitude,
           loc.longitude,
           loc.timestamp,
@@ -307,12 +314,13 @@ export const locationDb = {
           loc.battery || null,
           loc.speed || null
         );
+        insertedCount += result.changes;
       }
     });
 
     insertMany(locations);
     db.close();
-    return locations.length;
+    return insertedCount;
   },
 
   /**

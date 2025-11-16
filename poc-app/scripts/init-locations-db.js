@@ -62,8 +62,12 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_location_composite
   ON Location(user_id, username, timestamp DESC);
+
+  -- Prevent duplicates: unique combination of timestamp, username, and coordinates
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_location_unique
+  ON Location(timestamp, username, latitude, longitude);
 `);
-console.log('✓ Created indexes');
+console.log('✓ Created indexes (including unique constraint)');
 
 // Get stats
 const count = db.prepare('SELECT COUNT(*) as count FROM Location').get();
