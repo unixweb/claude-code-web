@@ -17,6 +17,15 @@ export default function AdminDashboard() {
     onlineDevices: 0,
   });
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [cleanupStatus, setCleanupStatus] = useState<{
+    loading: boolean;
+    message: string;
+    type: 'success' | 'error' | '';
+  }>({
+    loading: false,
+    message: '',
+    type: '',
+  });
 
   // Fetch devices from API
   useEffect(() => {
@@ -68,6 +77,54 @@ export default function AdminDashboard() {
       return () => clearInterval(interval);
     }
   }, [devices]);
+
+  // Cleanup old locations
+  const handleCleanup = async (retentionHours: number) => {
+    if (!confirm(`Delete all locations older than ${Math.round(retentionHours / 24)} days?`)) {
+      return;
+    }
+
+    setCleanupStatus({ loading: true, message: '', type: '' });
+
+    try {
+      const response = await fetch('/api/locations/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retentionHours }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCleanupStatus({
+          loading: false,
+          message: `✓ Deleted ${data.deleted} records. Freed ${data.freedKB} KB.`,
+          type: 'success',
+        });
+        // Refresh stats
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setCleanupStatus({
+          loading: false,
+          message: `Error: ${data.error}`,
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      setCleanupStatus({
+        loading: false,
+        message: 'Failed to cleanup locations',
+        type: 'error',
+      });
+    }
+
+    // Clear message after 5 seconds
+    setTimeout(() => {
+      setCleanupStatus({ loading: false, message: '', type: '' });
+    }, 5000);
+  };
 
   const statCards = [
     {
@@ -156,6 +213,69 @@ export default function AdminDashboard() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Database Maintenance */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Database Maintenance
+          </h3>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-gray-600 mb-4">
+            Clean up old location data to keep the database size manageable.
+          </p>
+
+          {/* Cleanup Status Message */}
+          {cleanupStatus.message && (
+            <div
+              className={`mb-4 p-3 rounded ${
+                cleanupStatus.type === 'success'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
+              }`}
+            >
+              {cleanupStatus.message}
+            </div>
+          )}
+
+          {/* Cleanup Buttons */}
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => handleCleanup(168)}
+              disabled={cleanupStatus.loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 7 days'}
+            </button>
+            <button
+              onClick={() => handleCleanup(360)}
+              disabled={cleanupStatus.loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 15 days'}
+            </button>
+            <button
+              onClick={() => handleCleanup(720)}
+              disabled={cleanupStatus.loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 30 days'}
+            </button>
+            <button
+              onClick={() => handleCleanup(2160)}
+              disabled={cleanupStatus.loading}
+              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {cleanupStatus.loading ? 'Cleaning...' : 'Delete > 90 days'}
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-4">
+            Current database size: {stats.totalPoints} locations
+          </p>
         </div>
       </div>
 
